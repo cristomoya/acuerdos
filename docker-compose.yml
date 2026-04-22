@@ -1,0 +1,62 @@
+version: '3.9'
+
+services:
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: acuerdos-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_PATH: /data/acuerdos.db
+      FILES_DIR: /data/carpetas
+      TEMPLATES_DIR: /data/plantillas
+      JWT_SECRET: ${JWT_SECRET:-cambia-este-secreto-en-produccion}
+    volumes:
+      - acuerdos-data:/data
+      - ${CARPETAS_PATH:-./carpetas}:/data/carpetas
+      - ${PLANTILLAS_PATH:-./plantillas}:/data/plantillas
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: acuerdos-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - internal
+      - traefik-net
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.modelos.rule=Host(`modelos.cristobalmoyalopez.es`)
+      - traefik.http.routers.modelos.tls=true
+      - traefik.http.routers.modelos.entrypoints=websecure
+      - traefik.http.routers.modelos.tls.certresolver=le
+      - traefik.http.services.modelos.loadbalancer.server.port=80
+      - traefik.http.routers.modelos.service=modelos
+      - traefik.docker.network=traefik-net
+
+
+volumes:
+  acuerdos-data:
+    driver: local
+
+networks:
+  internal:
+    driver: bridge
+  traefik-net:
+    external: true

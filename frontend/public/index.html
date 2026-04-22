@@ -1,0 +1,652 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta http-equiv="Cache-Control" content="no-transform"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Gestión de Modelos de Acuerdo</title>
+  <!-- Marked.js for Markdown preview -->
+  
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#f5f4f0;--surface:#fff;--surface2:#f8f7f3;
+      --border:rgba(0,0,0,0.09);--border2:rgba(0,0,0,0.16);
+      --text:#1a1a18;--text2:#5a5a55;--text3:#9a9a94;
+      --blue:#185FA5;--blue-bg:#E6F1FB;--blue-mid:#B5D4F4;
+      --teal:#0F6E56;--teal-bg:#E1F5EE;
+      --amber:#854F0B;--amber-bg:#FAEEDA;
+      --green:#3B6D11;--green-bg:#EAF3DE;
+      --purple:#534AB7;--purple-bg:#EEEDFE;
+      --red:#A32D2D;--red-bg:#FCEBEB;
+      --r:8px;--rl:12px;--rxl:16px;
+    }
+    body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+
+    /* ── LOGIN ── */
+    #login{min-height:100vh;display:flex;align-items:center;justify-content:center}
+    .lcard{background:var(--surface);border:0.5px solid var(--border2);border-radius:var(--rxl);padding:36px;width:360px}
+    .llogo{display:flex;align-items:center;gap:10px;margin-bottom:24px}
+    .licon{width:36px;height:36px;background:var(--blue-bg);border-radius:var(--r);display:flex;align-items:center;justify-content:center}
+    .ltitle{font-size:15px;font-weight:600}
+    .lsub{font-size:12px;color:var(--text2)}
+    .hint{font-size:11px;color:var(--text3);background:var(--surface2);border-radius:var(--r);padding:8px 10px;margin-top:14px;line-height:1.7}
+    .err{color:var(--red);font-size:12px;margin-top:6px;display:none}
+
+    /* ── INPUTS ── */
+    .fg{display:flex;flex-direction:column;gap:3px;margin-bottom:12px}
+    .fl{font-size:11px;color:var(--text2)}
+    input,textarea,select{width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--r);font-size:13px;background:var(--surface);color:var(--text);outline:none;transition:border-color .15s;font-family:inherit}
+    input:focus,textarea:focus,select:focus{border-color:var(--blue)}
+
+    /* ── BUTTONS ── */
+    .btn{padding:6px 14px;border-radius:var(--r);font-size:13px;cursor:pointer;border:0.5px solid var(--border2);background:var(--surface);color:var(--text);transition:background .12s;font-weight:500;font-family:inherit;white-space:nowrap}
+    .btn:hover{background:var(--surface2)}
+    .btn-primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+    .btn-primary:hover{background:#0C447C}
+    .btn-danger{background:var(--red-bg);color:var(--red);border-color:#F7C1C1}
+    .btn-success{background:var(--green-bg);color:var(--green);border-color:#C0DD97}
+    .btn-sm{padding:3px 10px;font-size:12px}
+    .btn-full{width:100%}
+
+    /* ── APP ── */
+    #app{display:none;flex-direction:column;height:100vh;overflow:hidden}
+    .topbar{height:50px;background:var(--surface);border-bottom:0.5px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:10px;flex-shrink:0;z-index:50}
+    .brand{font-size:14px;font-weight:600}
+    .brand span{font-weight:400;color:var(--text2)}
+    .topright{margin-left:auto;display:flex;align-items:center;gap:8px}
+    .upill{display:flex;align-items:center;gap:7px;padding:4px 10px;background:var(--surface2);border:0.5px solid var(--border);border-radius:99px;cursor:pointer;font-size:12px}
+    .av{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;background:var(--blue-bg);color:var(--blue)}
+
+    /* ── TABS ── */
+    .tabs{display:flex;background:var(--surface);border-bottom:0.5px solid var(--border);padding:0 16px;flex-shrink:0}
+    .tab{padding:9px 16px;font-size:13px;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;transition:color .1s;white-space:nowrap}
+    .tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+    .tab.hidden{display:none}
+
+    /* ── LAYOUT ── */
+    .abody{display:flex;flex:1;overflow:hidden}
+
+    /* ── SIDEBAR ── */
+    .sidebar{width:256px;background:var(--surface);border-right:0.5px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+    .sbhead{padding:10px;border-bottom:0.5px solid var(--border)}
+    .sbtop{display:flex;gap:6px;margin-bottom:8px}
+    .sbsearch{position:relative;flex:1}
+    .sbsearch input{padding-left:26px;font-size:12px}
+    .sbsearch-ic{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--text3);pointer-events:none}
+    .filters{display:flex;gap:4px;flex-wrap:wrap}
+    .chip{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--surface2);border:0.5px solid var(--border);cursor:pointer;color:var(--text2)}
+    .chip.active{background:var(--blue-bg);border-color:var(--blue-mid);color:var(--blue)}
+    .viewtoggle{display:flex;gap:4px;padding:6px 8px;border-bottom:0.5px solid var(--border)}
+    .vtbtn{flex:1;font-size:11px;padding:3px 6px}
+    .modlist{flex:1;overflow-y:auto;padding:5px}
+    .mitem{padding:7px 9px;border-radius:var(--r);cursor:pointer;display:flex;align-items:flex-start;gap:8px;margin-bottom:2px;transition:background .1s}
+    .mitem:hover{background:var(--surface2)}
+    .mitem.active{background:var(--blue-bg)}
+    .micon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+    .minfo{flex:1;min-width:0}
+    .mname{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .mmeta{font-size:11px;color:var(--text3);margin-top:1px}
+    .sbfoot{padding:8px 10px;border-top:0.5px solid var(--border);font-size:11px;color:var(--text3)}
+
+    /* ── TREE VIEW ── */
+    .cattree{flex:1;overflow-y:auto;padding:5px}
+    .catrow{margin-bottom:1px}
+    .cathdr{display:flex;align-items:center;gap:6px;padding:6px 9px;border-radius:var(--r);cursor:pointer;transition:background .1s}
+    .cathdr:hover{background:var(--surface2)}
+    .catico{font-size:15px;width:22px;text-align:center;flex-shrink:0}
+    .catname{font-size:12px;font-weight:500;flex:1}
+    .catcnt{font-size:10px;color:var(--text3);background:var(--surface2);padding:1px 5px;border-radius:99px}
+    .catkids{padding-left:8px;display:none}
+    .catkids.open{display:block}
+    .catmod{padding:5px 9px 5px 30px;border-radius:var(--r);cursor:pointer;font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .1s}
+    .catmod:hover{background:var(--surface2);color:var(--text)}
+    .catmod.active{background:var(--blue-bg);color:var(--blue)}
+    /* ── SUBCATEGORY TREE ── */
+    .subcat-hdr{display:flex;align-items:center;gap:5px;padding:4px 9px 4px 20px;border-radius:var(--r);cursor:pointer;transition:background .1s;font-size:11px;color:var(--text2)}
+    .subcat-hdr:hover{background:var(--surface2)}
+    .subcat-kids{padding-left:8px;display:none}
+    .subcat-kids.open{display:block}
+    .subcat-mod{padding:4px 9px 4px 36px;border-radius:var(--r);cursor:pointer;font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .1s}
+    .subcat-mod:hover{background:var(--surface2);color:var(--text)}
+    .subcat-mod.active{background:var(--blue-bg);color:var(--blue)}
+
+    /* ── EDITOR WRAP ── */
+    .ewrap{flex:1;display:flex;flex-direction:column;overflow:hidden}
+    .ehead{background:var(--surface);border-bottom:0.5px solid var(--border);padding:0 16px;height:46px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+    .etitle{font-size:13px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .emeta{font-size:11px;color:var(--text3);white-space:nowrap}
+
+    /* ── META CARD ── */
+    .metacard{background:var(--surface);border-bottom:0.5px solid var(--border);padding:10px 16px;flex-shrink:0}
+    .metarow{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;align-items:end}
+    .metarow2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+
+    /* ── MD EDITOR ── */
+    .meditor{flex:1;display:flex;overflow:hidden}
+
+    /* left: markdown source */
+    .md-source{flex:1;display:flex;flex-direction:column;border-right:0.5px solid var(--border);overflow:hidden}
+    .md-toolbar{display:flex;align-items:center;gap:2px;padding:5px 8px;background:var(--surface2);border-bottom:0.5px solid var(--border);flex-wrap:wrap;flex-shrink:0}
+    .mdt{padding:3px 7px;border-radius:5px;font-size:12px;cursor:pointer;border:none;background:transparent;color:var(--text2);transition:background .1s;font-family:inherit}
+    .mdt:hover{background:var(--surface);color:var(--text)}
+    .mdtsep{width:0.5px;height:16px;background:var(--border);margin:0 2px}
+    .mdt-field{background:var(--blue-bg);color:var(--blue);font-size:11px;font-weight:500}
+    .mdt-field:hover{background:var(--blue-mid)}
+    .md-textarea{flex:1;padding:14px 16px;font-family:'Cascadia Code','Fira Code','Courier New',monospace;font-size:13px;line-height:1.75;border:none;outline:none;resize:none;background:var(--surface);color:var(--text);overflow-y:auto}
+    .field-hl{background:#FFFF99;color:#0000CC;border-radius:3px;padding:0 2px}
+
+    /* right: preview */
+    .md-preview{flex:1;overflow-y:auto;padding:20px 24px;background:var(--surface);display:flex;flex-direction:column}
+    .preview-label{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border)}
+    .md-preview-body{flex:1;font-family:'Georgia','Times New Roman',serif;font-size:14px;line-height:1.8;color:var(--text)}
+    .md-preview-body h1{font-size:20px;font-weight:700;margin:0 0 16px;color:var(--text);line-height:1.3}
+    .md-preview-body h2{font-size:16px;font-weight:600;margin:20px 0 10px;color:var(--text)}
+    .md-preview-body h3{font-size:14px;font-weight:600;margin:16px 0 8px;color:var(--text)}
+    .md-preview-body p{margin:0 0 12px}
+    .md-preview-body ul,.md-preview-body ol{margin:0 0 12px;padding-left:22px}
+    .md-preview-body li{margin-bottom:4px}
+    .md-preview-body strong{font-weight:700}
+    .md-preview-body em{font-style:italic}
+    .md-preview-body hr{border:none;border-top:0.5px solid var(--border);margin:16px 0}
+    .md-preview-body code{font-family:monospace;font-size:12px;background:var(--surface2);padding:1px 5px;border-radius:3px}
+    .md-preview-body pre{background:var(--surface2);padding:12px;border-radius:var(--r);overflow-x:auto;margin:0 0 12px}
+    .md-preview-body blockquote{border-left:3px solid var(--border2);padding-left:12px;color:var(--text2);margin:0 0 12px;font-style:italic}
+    .md-preview-body .field-tag{background:#FFFF99;color:#0000CC;font-family:monospace;font-size:12px;border-radius:3px;padding:1px 4px;font-style:normal}
+
+    /* ── RIGHT PANEL ── */
+    .rpanel{width:196px;background:var(--surface);border-left:0.5px solid var(--border);overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:14px;flex-shrink:0}
+    .ptitle{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+    .fchip{display:flex;align-items:center;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:var(--r);margin-bottom:3px;border:0.5px solid var(--border);cursor:pointer;transition:border-color .1s}
+    .fchip:hover{border-color:var(--blue)}
+    .fchipname{font-size:11px;color:var(--blue);font-family:monospace}
+    .fchiphint{font-size:10px;color:var(--text3)}
+    .aitem{display:flex;gap:6px;margin-bottom:7px}
+    .adot{width:5px;height:5px;border-radius:50%;background:var(--blue);margin-top:5px;flex-shrink:0}
+    .atext{font-size:11px;color:var(--text2);line-height:1.4}
+    .atime{font-size:10px;color:var(--text3)}
+    .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:99px;margin:2px;border:0.5px solid var(--border);background:var(--surface2);color:var(--text2)}
+
+    /* ── BADGES ── */
+    .b{font-size:10px;padding:2px 6px;border-radius:99px;font-weight:500;display:inline-block}
+    .b-activo{background:var(--green-bg);color:var(--green)}
+    .b-borrador{background:var(--amber-bg);color:var(--amber)}
+    .b-archivado{background:var(--surface2);color:var(--text3)}
+    .b-admin{background:var(--blue-bg);color:var(--blue)}
+    .b-editor{background:var(--teal-bg);color:var(--teal)}
+    .b-consultor{background:var(--amber-bg);color:var(--amber)}
+    .b-defecto{background:var(--green-bg);color:var(--green)}
+
+    /* ── TABPANELS ── */
+    .tabpanel{flex:1;padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+    .card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--rl);overflow:hidden}
+    .chead{padding:9px 14px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500}
+    .cbody{padding:14px}
+    .urow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)}
+    .urow:last-child{border-bottom:none}
+    .uname{font-size:13px;font-weight:500}
+    .uemail{font-size:11px;color:var(--text3)}
+
+    /* ── CATEGORIES ── */
+    .catgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+    .catcard{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--rl);padding:12px}
+    .catcard-top{display:flex;align-items:flex-start;gap:9px;margin-bottom:8px}
+    .catcard-ico{font-size:22px;width:32px;text-align:center;flex-shrink:0}
+    .catcard-name{font-size:13px;font-weight:600}
+    .catcard-desc{font-size:11px;color:var(--text2);margin-top:2px}
+    .catcard-foot{display:flex;align-items:center;gap:6px;padding-top:8px;border-top:0.5px solid var(--border);font-size:11px;color:var(--text3)}
+    .catcard-folder{font-family:monospace;font-size:10px;background:var(--surface2);padding:2px 6px;border-radius:4px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+    /* ── TEMPLATES ── */
+    .tplcard{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--rl);padding:12px;display:flex;align-items:center;gap:12px}
+    .tplicon{width:38px;height:38px;background:var(--teal-bg);border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+    .tplinfo{flex:1;min-width:0}
+    .tplname{font-size:13px;font-weight:500}
+    .tpldesc{font-size:11px;color:var(--text2);margin-top:2px}
+    .tplactions{display:flex;gap:6px;align-items:center;flex-shrink:0}
+
+    /* ── ROLES ── */
+    .rgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    .rcard{border:0.5px solid var(--border);border-radius:var(--r);padding:11px}
+    .rname{font-size:13px;font-weight:500;margin-bottom:4px}
+    .rdesc{font-size:11px;color:var(--text2);line-height:1.5}
+
+    /* ── MODAL ── */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.28);display:none;align-items:center;justify-content:center;z-index:200}
+    .overlay.open{display:flex}
+    .modal{background:var(--surface);border-radius:var(--rxl);border:0.5px solid var(--border);padding:22px;width:400px;max-width:95vw;max-height:90vh;overflow-y:auto}
+    .modal-lg{width:560px}
+    .mtitle{font-size:15px;font-weight:600;margin-bottom:4px}
+    .msub{font-size:12px;color:var(--text2);margin-bottom:14px}
+    .mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+    .ptags{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}
+    .ptag{font-size:11px;padding:2px 7px;border-radius:99px;background:var(--surface2);border:0.5px solid var(--border);cursor:pointer;color:var(--text2)}
+    .ptag:hover{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-mid)}
+    .frow2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .swatches{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+    .sw{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent}
+    .sw.sel{border-color:var(--text)}
+
+    /* ── DROP ZONE ── */
+    .dropzone{border:2px dashed var(--border2);border-radius:var(--rl);padding:24px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
+    .dropzone:hover,.dropzone.dragover{border-color:var(--blue);background:var(--blue-bg)}
+    .dropzone p{font-size:13px;color:var(--text2);margin-top:6px}
+    .dropzone small{font-size:11px;color:var(--text3)}
+
+    /* ── EMPTY/TOAST ── */
+    .empty{text-align:center;padding:50px 20px;color:var(--text2)}
+    .empty h3{font-size:16px;font-weight:500;margin-bottom:6px}
+    .empty p{font-size:12px;color:var(--text3)}
+    .toast{position:fixed;bottom:16px;right:16px;background:#1a1a18;color:#fff;padding:8px 14px;border-radius:var(--r);font-size:13px;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none}
+    .toast.show{opacity:1}
+
+    /* ── EXPORT DROPDOWN ── */
+    .export-wrap{position:relative}
+    .export-menu{position:absolute;right:0;top:calc(100% + 4px);background:var(--surface);border:0.5px solid var(--border2);border-radius:var(--r);min-width:220px;z-index:100;display:none;box-shadow:0 4px 16px rgba(0,0,0,.1)}
+    .export-menu.open{display:block}
+    .emenu-item{padding:9px 14px;cursor:pointer;font-size:13px;transition:background .1s;display:flex;align-items:center;gap:8px}
+    .emenu-item:hover{background:var(--surface2)}
+    .emenu-sep{border-top:0.5px solid var(--border);margin:4px 0}
+    .emenu-label{padding:6px 14px 4px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
+  </style>
+</head>
+<body>
+
+<!-- ── LOGIN ── -->
+<div id="login">
+  <div class="lcard">
+    <div class="llogo">
+      <div class="licon">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="16" height="16" rx="3" fill="#E6F1FB"/><rect x="5" y="6" width="10" height="1.5" rx=".75" fill="#185FA5"/><rect x="5" y="9.25" width="10" height="1.5" rx=".75" fill="#185FA5"/><rect x="5" y="12.5" width="6" height="1.5" rx=".75" fill="#185FA5"/></svg>
+      </div>
+      <div><div class="ltitle">Gestión de Modelos de Acuerdo</div><div class="lsub">Secretaría Municipal</div></div>
+    </div>
+    <div class="fg"><label class="fl">Correo electrónico</label><input type="email" id="l-email" placeholder="usuario@ayuntamiento.es"/></div>
+    <div class="fg"><label class="fl">Contraseña</label><input type="password" id="l-pass" placeholder="••••••••"/></div>
+    <div class="err" id="l-err"></div>
+    <button class="btn btn-primary btn-full" onclick="doLogin()">Entrar</button>
+    <div class="hint"><strong>Usuarios de prueba:</strong><br>admin@ayuntamiento.es / admin123<br>carlos@ayuntamiento.es / editor123<br>pedro@ayuntamiento.es / consultor123</div>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="app">
+  <div class="topbar">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="16" height="16" rx="3" fill="#E6F1FB"/><rect x="5" y="6" width="10" height="1.5" rx=".75" fill="#185FA5"/><rect x="5" y="9.25" width="10" height="1.5" rx=".75" fill="#185FA5"/><rect x="5" y="12.5" width="6" height="1.5" rx=".75" fill="#185FA5"/></svg>
+    <span class="brand">Modelos de Acuerdo <span>— Ayuntamiento</span></span>
+    <div class="topright">
+      <div class="upill" onclick="doLogout()">
+        <div class="av" id="top-av">AL</div>
+        <span id="top-name">Ana López</span>
+        <span style="font-size:10px;color:var(--text3)">Salir</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" id="tab-e-btn" onclick="switchTab('editor')">Editor</div>
+    <div class="tab hidden" id="tab-c-btn" onclick="switchTab('cats')">Categorías</div>
+    <div class="tab hidden" id="tab-t-btn" onclick="switchTab('tpls')">Plantillas</div>
+    <div class="tab hidden" id="tab-u-btn" onclick="switchTab('users')">Usuarios</div>
+  </div>
+
+  <!-- ══ EDITOR TAB ══ -->
+  <div class="abody" id="tab-editor">
+    <!-- sidebar -->
+    <div class="sidebar">
+      <div class="sbhead">
+        <div class="sbtop">
+          <div class="sbsearch"><span class="sbsearch-ic">⌕</span><input type="text" id="sq" placeholder="Buscar…" oninput="loadModels()"/></div>
+          <button class="btn btn-primary btn-sm" onclick="newModel()" style="padding:3px 10px;font-size:13px">+</button>
+        </div>
+        <div class="filters" id="filters">
+          <span class="chip active" data-f="">Todos</span>
+          <span class="chip" data-f="activo">Activos</span>
+          <span class="chip" data-f="borrador">Borradores</span>
+        </div>
+      </div>
+      <div class="viewtoggle">
+        <button class="btn btn-sm vtbtn" id="vl-btn" onclick="setView('list')">≡ Lista</button>
+        <button class="btn btn-sm vtbtn btn-primary" id="vt-btn" onclick="setView('tree')">🗂 Carpetas</button>
+      </div>
+      <div id="view-list" style="display:none" class="modlist"></div>
+      <div id="view-tree" class="cattree"></div>
+      <div class="sbfoot" id="sbstats">—</div>
+    </div>
+
+    <!-- editor -->
+    <div class="ewrap" id="ewrap">
+      <div class="empty" id="e-empty" style="margin:auto">
+        <h3>Selecciona un modelo</h3>
+        <p>Elige de la lista o crea uno nuevo con +</p>
+      </div>
+
+      <div id="e-panel" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+        <!-- header bar -->
+        <div class="ehead">
+          <div style="flex:1;min-width:0">
+            <div class="etitle" id="e-title">—</div>
+            <div class="emeta" id="e-meta">—</div>
+          </div>
+          <button class="btn btn-sm" id="btn-save" onclick="saveModel()">💾 Guardar</button>
+          <button class="btn btn-sm" id="btn-styles" onclick="openStylesEditor()">⚙ Estilos</button>
+          <!-- export dropdown -->
+          <div class="export-wrap" id="export-wrap">
+            <button class="btn btn-sm" onclick="openDuplicateModal()" title="Duplicar modelo">⧉ Dupplicar</button>  
+            <button class="btn btn-sm btn-success" onclick="toggleExportMenu()">⬇ Exportar .odt ▾</button>
+            <div class="export-menu" id="export-menu">
+              <div class="emenu-label">Plantilla LibreOffice</div>
+              <div class="emenu-item" onclick="exportOdt(null)">
+                <span>📄</span><span>Sin plantilla (estilos por defecto)</span>
+              </div>
+              <div class="emenu-sep"></div>
+              <div id="emenu-tpls"></div>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-danger" id="btn-del" onclick="deleteModel()" style="display:none">🗑</button>
+        </div>
+
+        <!-- metadata row -->
+        <div class="metacard">
+          <div class="metarow">
+            <div class="fg" style="margin:0"><label class="fl">Nombre del modelo</label><input type="text" id="e-name"/></div>
+            <div class="fg" style="margin:0"><label class="fl">Categoría</label><select id="e-cat"><option value="">— Sin categoría —</option></select></div>
+            <div class="fg" style="margin:0"><label class="fl">Estado</label>
+              <select id="e-status"><option value="activo">Activo</option><option value="borrador">Borrador</option><option value="archivado">Archivado</option></select>
+            </div>
+            <div class="fg" style="margin:0"><label class="fl">Etiquetas</label><input type="text" id="e-tags" placeholder="pleno, presupuesto…"/></div>
+          </div>
+          <div class="fg" style="margin:6px 0 0"><label class="fl">Descripción interna</label><input type="text" id="e-desc" placeholder="Uso interno…"/></div>
+        </div>
+
+        <!-- markdown editor + preview -->
+        <div class="meditor">
+          <!-- source -->
+          <div class="md-source">
+            <div class="md-toolbar">
+              <span style="font-size:11px;color:var(--text3);margin-right:6px;font-weight:500">Formato:</span>
+              <button class="mdt" onclick="mdFmt('bold')" title="Negrita (Ctrl+B)"><b>N</b></button>
+              <button class="mdt" onclick="mdFmt('italic')" title="Cursiva (Ctrl+I)"><i>C</i></button>
+              <button class="mdt" onclick="mdFmt('strikethrough')" title="Tachado">S̶</button>
+              <button class="mdt" onclick="mdFmt('underline')" title="Subrayado (Ctrl+U)"><u>U</u></button>
+              <div class="mdtsep"></div>
+              <span style="font-size:11px;color:var(--text3);margin:0 6px;font-weight:500">Títulos:</span>
+              <button class="mdt" onclick="mdFmt('heading1')" title="Título 1 (# )">H1</button>
+              <button class="mdt" onclick="mdFmt('heading2')" title="Título 2 (## )">H2</button>
+              <button class="mdt" onclick="mdFmt('heading3')" title="Título 3 (### )">H3</button>
+              <button class="mdt" onclick="mdFmt('heading4')" title="Título 4 (#### )">H4</button>
+              <div class="mdtsep"></div>
+              <span style="font-size:11px;color:var(--text3);margin:0 6px;font-weight:500">Listas:</span>
+              <button class="mdt" onclick="mdFmt('ul')" title="Lista sin orden (• / - / *)">• Lista</button>
+              <button class="mdt" onclick="mdFmt('ol')" title="Lista ordenada (1. / 2. ...)">1. Orden</button>
+              <div class="mdtsep"></div>
+              <span style="font-size:11px;color:var(--text3);margin:0 6px;font-weight:500">Elementos:</span>
+              <button class="mdt" onclick="mdFmt('blockquote')" title="Cita (> )">💬 Cita</button>
+              <button class="mdt" onclick="mdFmt('code')" title="Bloque de código (```)">{}</button>
+              <button class="mdt" onclick="mdFmt('table')" title="Tabla">⬚ Tabla</button>
+              <button class="mdt" onclick="mdFmt('hr')" title="Separador (---/***/___)">—</button>
+              <div class="mdtsep"></div>
+              <button class="mdt mdt-field" onclick="openFieldModal()" title="Campo dinámico">{{campo}}</button>
+              <div class="mdtsep"></div> 
+                <button class="mdt" onclick="triggerPasteFromWord()" title="Pegar desde Word/Writer">📋 Pegar Word</button>
+              <div class="mdtsep"></div>
+              <span style="font-size:10px;color:var(--text3);margin-left:2px">Vista previa en tiempo real →</span>
+            </div>
+            <textarea class="md-textarea" id="e-body" placeholder="# Título del acuerdo&#10;&#10;Escriba aquí el cuerpo usando Markdown.&#10;Use {{CAMPO}} para campos dinámicos."
+              oninput="updatePreview()" onkeydown="handleTab(event)" onmouseup="saveSel()" onkeyup="saveSel()"></textarea>
+          </div>
+            <!-- Modal pegar desde Word -->
+            <!-- Modal pegar desde Word -->
+<div class="overlay" id="m-paste-word">
+  <div class="modal" style="width:560px">
+    <div class="mtitle">📋 Pegar desde Word / Writer</div>
+    <div class="msub">Pega el texto copiado de Word o LibreOffice Writer aquí abajo (Ctrl+V)</div>
+    <div id="paste-input" contenteditable="true" 
+      style="height:300px;overflow-y:auto;border:0.5px solid var(--border2);
+             border-radius:var(--r);padding:10px;font-size:13px;
+             font-family:inherit;line-height:1.6;outline:none"
+      placeholder="Pega aquí el texto de Word..."></div>
+    <div class="mfoot">
+      <button class="btn btn-sm" onclick="closeModal('m-paste-word')">Cancelar</button>
+      <button class="btn btn-sm btn-primary" onclick="confirmPasteWord()">Insertar</button>
+    </div>
+  </div>
+</div>
+
+   <!-- preview + right panel -->
+          <div style="display:flex;flex:1;overflow:hidden">
+            <div class="md-preview">
+              <div class="preview-label">Vista previa</div>
+              <div class="md-preview-body" id="e-preview"></div>
+            </div>
+            <div class="rpanel">
+              <div>
+                <div class="ptitle">Campos detectados</div>
+                <div id="r-fields"><span style="font-size:11px;color:var(--text3)">Sin campos</span></div>
+                <button class="btn btn-sm" style="width:100%;margin-top:5px" onclick="openFieldModal()">+ Campo</button>
+              </div>
+              <div>
+                <div class="ptitle">Etiquetas</div>
+                <div id="r-tags"></div>
+              </div>
+              <div>
+                <div class="ptitle">Actividad</div>
+                <div id="r-activity"><span style="font-size:11px;color:var(--text3)">—</span></div>
+              </div>
+              <div>
+                <div class="ptitle">Referencia Markdown</div>
+                <div style="font-size:10px;line-height:1.6;color:var(--text2)">
+                  <div><strong>Estilos:</strong></div>
+                  <div>**negrita** ~*cursiva*~</div>
+                  <div>~~tachado~~ &lt;u>subrayado&lt;/u></div>
+                  <div style="margin-top:6px"><strong>Títulos:</strong></div>
+                  <div># H1 · ## H2 · ### H3</div>
+                  <div style="margin-top:6px"><strong>Listas:</strong></div>
+                  <div>- item (sin orden)</div>
+                  <div>1. item (ordenada)</div>
+                  <div style="margin-top:6px"><strong>Elementos:</strong></div>
+                  <div>> cita (blockquote)</div>
+                  <div>`codigo en línea`</div>
+                  <div>```código bloque```</div>
+                  <div><strong>| tabla |</strong></div>
+                  <div>--- (separador)</div>
+                  <div style="margin-top:6px"><strong>Campos:</strong></div>
+                  <div>{{NOMBRE_CAMPO}}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ CATEGORIES TAB ══ -->
+  <div class="abody" id="tab-cats" style="display:none">
+    <div class="tabpanel">
+      <div class="card">
+        <div class="chead">🗂 Categorías y carpetas
+          <div style="margin-left:auto"><button class="btn btn-sm btn-primary" onclick="openCatModal()">+ Nueva</button></div>
+        </div>
+        <div class="cbody"><div class="catgrid" id="catgrid">Cargando…</div></div>
+      </div>
+      <div class="card" id="cat-files-card" style="display:none">
+        <div class="chead" id="cat-files-title">📁 Archivos exportados</div>
+        <div class="cbody"><div id="cat-files-list" style="font-size:12px"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TEMPLATES TAB ══ -->
+  <div class="abody" id="tab-tpls" style="display:none">
+    <div class="tabpanel">
+      <div class="card">
+        <div class="chead">📋 Plantillas LibreOffice
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <span style="font-size:11px;color:var(--text3)">Sube un .ott o .odt con tu maquetación</span>
+            <button class="btn btn-sm btn-primary" onclick="openTplUpload()">⬆ Subir plantilla</button>
+          </div>
+        </div>
+        <div class="cbody">
+          <div style="background:var(--blue-bg);border-radius:var(--r);padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--blue);line-height:1.6">
+            <strong>¿Cómo funciona?</strong> El sistema inyecta el contenido Markdown renderizado sobre tu plantilla,
+            respetando su maquetación de página (márgenes, cabeceras, pie de página).
+            Crea la plantilla en LibreOffice Writer con los márgenes y estilos de tu ayuntamiento y súbela aquí.
+            Marca una plantilla como <strong>predeterminada</strong> para que se use automáticamente en todas las exportaciones.
+          </div>
+          <div id="tpl-list" style="display:flex;flex-direction:column;gap:8px">Cargando…</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="chead">📖 Macro LibreOffice para sustitución de campos</div>
+        <div class="cbody">
+          <p style="font-size:12px;color:var(--text2);margin-bottom:10px">
+            Copia esta macro en LibreOffice Basic (Herramientas → Macros → Editar) para sustituir todos los campos <code style="background:var(--surface2);padding:1px 4px;border-radius:3px">{{CAMPO}}</code> del documento exportado.
+          </p>
+          <pre id="macro-code" style="background:var(--surface2);padding:12px;border-radius:var(--r);font-size:11px;line-height:1.7;overflow-x:auto;font-family:monospace;cursor:pointer" onclick="copyMacro()" title="Clic para copiar"></pre>
+          <p style="font-size:11px;color:var(--text3);margin-top:6px">Clic en el código para copiar al portapapeles</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ USERS TAB ══ -->
+  <div class="abody" id="tab-users" style="display:none">
+    <div class="tabpanel">
+      <div class="card">
+        <div class="chead">👥 Usuarios
+          <div style="margin-left:auto"><button class="btn btn-sm btn-primary" onclick="openUserModal()">+ Nuevo</button></div>
+        </div>
+        <div class="cbody" id="ulist">Cargando…</div>
+      </div>
+      <div class="card">
+        <div class="chead">🔐 Roles y permisos</div>
+        <div class="cbody">
+          <div class="rgrid">
+            <div class="rcard"><div class="rname" style="color:var(--blue)">Administrador</div><div class="rdesc">Crear, editar, eliminar modelos. Gestionar categorías, plantillas y usuarios.</div></div>
+            <div class="rcard"><div class="rname" style="color:var(--teal)">Editor</div><div class="rdesc">Crear y editar modelos. No puede eliminar ni gestionar usuarios.</div></div>
+            <div class="rcard"><div class="rname" style="color:var(--amber)">Consultor</div><div class="rdesc">Solo lectura. Puede exportar modelos a .odt.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODALS ══ -->
+<!-- Field modal -->
+<div class="overlay" id="m-field">
+  <div class="modal">
+    <div class="mtitle">Insertar campo dinámico</div>
+    <div class="msub">Se insertará <code style="background:var(--blue-bg);color:var(--blue);padding:1px 5px;border-radius:3px">{{NOMBRE}}</code> en la posición del cursor</div>
+    <div class="fg"><label class="fl">Nombre del campo</label><input type="text" id="mf-name" placeholder="NUMERO_EXPEDIENTE" oninput="this.value=this.value.toUpperCase().replace(/\s/g,'_')"/></div>
+    <div class="fl" style="margin-bottom:5px">Campos habituales:</div>
+    <div class="ptags" id="mf-presets"></div>
+    <div class="mfoot"><button class="btn btn-sm" onclick="closeModal('m-field')">Cancelar</button><button class="btn btn-sm btn-primary" onclick="confirmField()">Insertar</button></div>
+  </div>
+</div>
+
+<!-- Category modal -->
+<div class="overlay" id="m-cat">
+  <div class="modal">
+    <div class="mtitle" id="mcat-title">Nueva categoría</div>
+    <div class="msub">Se crea una carpeta en el servidor con el mismo nombre</div>
+    <div class="fg"><label class="fl">Categoría padre (opcional)</label>
+      <select id="mc-parent">
+        <option value="">— Categoría raíz —</option>
+      </select>
+    </div>
+    <div class="frow2">
+      <div class="fg"><label class="fl">Nombre</label><input type="text" id="mc-nombre"/></div>
+      <div class="fg"><label class="fl">Icono (emoji)</label><input type="text" id="mc-icono" style="font-size:18px;text-align:center" placeholder="📄"/></div>
+    </div>
+    <div class="fg"><label class="fl">Descripción</label><input type="text" id="mc-desc"/></div>
+    <div class="fg"><label class="fl">Color</label>
+      <div class="swatches">
+        <div class="sw sel" data-c="blue" style="background:#185FA5" onclick="selColor('blue')"></div>
+        <div class="sw" data-c="teal" style="background:#0F6E56" onclick="selColor('teal')"></div>
+        <div class="sw" data-c="amber" style="background:#854F0B" onclick="selColor('amber')"></div>
+        <div class="sw" data-c="green" style="background:#3B6D11" onclick="selColor('green')"></div>
+        <div class="sw" data-c="purple" style="background:#534AB7" onclick="selColor('purple')"></div>
+        <div class="sw" data-c="red" style="background:#A32D2D" onclick="selColor('red')"></div>
+      </div>
+    </div>
+    <div class="fg"><label class="fl">Orden de aparición</label><input type="number" id="mc-orden" value="0" style="width:80px"/></div>
+    <div class="err" id="mc-err"></div>
+    <div class="mfoot"><button class="btn btn-sm" onclick="closeModal('m-cat')">Cancelar</button><button class="btn btn-sm btn-primary" onclick="saveCat()">Guardar</button></div>
+  </div>
+</div>
+
+<!-- Template upload modal -->
+<div class="overlay" id="m-tpl">
+  <div class="modal">
+    <div class="mtitle">Subir plantilla LibreOffice</div>
+    <div class="msub">Archivo .ott (plantilla Writer) o .odt con la maquetación de tu ayuntamiento</div>
+    <div class="fg"><label class="fl">Nombre descriptivo</label><input type="text" id="mt-nombre" placeholder="Papel oficial Ayuntamiento 2024"/></div>
+    <div class="fg"><label class="fl">Descripción</label><input type="text" id="mt-desc" placeholder="Con cabecera, logo y pie institucional"/></div>
+    <div class="dropzone" id="tpl-dropzone" onclick="document.getElementById('tpl-file').click()">
+      <div style="font-size:28px">📎</div>
+      <p>Arrastra aquí o haz clic para seleccionar</p>
+      <small>Formatos aceptados: .ott, .odt — Máx. 10 MB</small>
+    </div>
+    <input type="file" id="tpl-file" accept=".ott,.odt" style="display:none" onchange="handleTplFile(this)"/>
+    <div id="tpl-file-name" style="font-size:12px;color:var(--blue);margin-top:6px;display:none"></div>
+    <div class="err" id="mt-err"></div>
+    <div class="mfoot"><button class="btn btn-sm" onclick="closeModal('m-tpl')">Cancelar</button><button class="btn btn-sm btn-primary" id="btn-upload-tpl" onclick="uploadTpl()">Subir plantilla</button></div>
+  </div>
+</div>
+
+<!-- User modal -->
+<div class="overlay" id="m-user">
+  <div class="modal">
+    <div class="mtitle">Nuevo usuario</div>
+    <div class="fg"><label class="fl">Nombre completo</label><input type="text" id="mu-nombre"/></div>
+    <div class="fg"><label class="fl">Correo electrónico</label><input type="email" id="mu-email"/></div>
+    <div class="fg"><label class="fl">Contraseña inicial</label><input type="password" id="mu-pass"/></div>
+    <div class="fg"><label class="fl">Rol</label><select id="mu-rol"><option value="editor">Editor</option><option value="admin">Administrador</option><option value="consultor">Consultor</option></select></div>
+    <div class="err" id="mu-err"></div>
+    <div class="mfoot"><button class="btn btn-sm" onclick="closeModal('m-user')">Cancelar</button><button class="btn btn-sm btn-primary" onclick="createUser()">Crear usuario</button></div>
+  </div>
+</div>
+
+
+<!-- Style editor modal -->
+<div class="overlay" id="m-styles">
+  <div class="modal modal-lg">
+    <div class="mtitle">⚙ Configurar estilos de encabezados</div>
+    <div class="msub">Mapea cada nivel de encabezado Markdown a los estilos disponibles de tu plantilla LibreOffice</div>
+    <div id="styles-loading" style="text-align:center;color:var(--text3);padding:20px">Cargando estilos disponibles…</div>
+    <div id="styles-content" style="display:none;flex-direction:column;gap:12px">
+      <div id="styles-grid"></div>
+      <div style="border-top:0.5px solid var(--border);padding-top:10px">
+        <label class="fl" style="margin-bottom:8px">Estilo para párrafos de cuerpo</label>
+        <select id="ms-body-style"></select>
+      </div>
+    </div>
+    <div id="styles-error" style="display:none;color:var(--red);font-size:13px;padding:12px;background:var(--red-bg);border-radius:var(--r)"></div>
+    <div class="mfoot"><button class="btn btn-sm" onclick="closeModal('m-styles')">Cancelar</button><button class="btn btn-sm btn-primary" id="btn-save-styles" onclick="saveStyleConfig()">Guardar configuración</button></div>
+  </div>
+</div>
+
+<!-- Modal duplicar -->
+<div class="overlay" id="m-duplicate">
+  <div class="modal" style="width:400px">
+    <div class="mtitle">Duplicar modelo</div>
+    <div class="msub">El nuevo documento se creará como borrador</div>
+    <div class="fg">
+      <label class="fl">Nombre del nuevo documento</label>
+      <input id="dup-nombre" type="text" placeholder="Nombre..." onkeydown="if(event.key==='Enter')confirmDuplicate()"/>
+    </div>
+    <div id="dup-err" class="err"></div>
+    <div class="mfoot">
+      <button class="btn btn-sm" onclick="closeModal('m-duplicate')">Cancelar</button>
+      <button class="btn btn-sm btn-primary" onclick="confirmDuplicate()">Duplicar</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
