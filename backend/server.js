@@ -3,24 +3,34 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const Database = require('better-sqlite3');
+const os = require('os');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { execFile } = require('child_process');
 const multer = require('multer');
 const AdmZip = require('adm-zip');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const JWT_SECRET = process.env.JWT_SECRET || 'ayuntamiento-secret-2024';
-const DB_PATH = process.env.DB_PATH || '/data/acuerdos.db';
-const FILES_DIR = process.env.FILES_DIR || '/data/carpetas';
-const TEMPLATES_DIR = process.env.TEMPLATES_DIR || '/data/plantillas';
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'acuerdos.db');
+const FILES_DIR = process.env.FILES_DIR || path.join(__dirname, 'data', 'carpetas');
+const TEMPLATES_DIR = process.env.TEMPLATES_DIR || path.join(__dirname, 'data', 'plantillas');
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCK_MS = 15 * 60 * 1000;
+const FIELD_RE = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
+
+if (!process.env.JWT_SECRET) {
+  console.warn('[WARN] JWT_SECRET no definido. Se ha generado uno aleatorio para esta instancia; define JWT_SECRET en produccion.');
+}
 
 [path.dirname(DB_PATH), FILES_DIR, TEMPLATES_DIR].forEach(d => {
   if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
 });
 
-// ─── DATABASE ─────────────────────────────────────────────────────────────────
+// ??? DATABASE ?????????????????????????????????????????????????????????????????
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -40,10 +50,12 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre TEXT UNIQUE NOT NULL,
     descripcion TEXT,
-    icono TEXT DEFAULT '📄',
+    icono TEXT DEFAULT '??',
     color TEXT DEFAULT 'blue',
     orden INTEGER DEFAULT 0,
     activa INTEGER NOT NULL DEFAULT 1,
+    parent_id INTEGER REFERENCES categorias(id) ON DELETE CASCADE,
+    total_modelos INTEGER DEFAULT 0,
     created_by INTEGER REFERENCES users(id),
     created_at TEXT DEFAULT (datetime('now'))
   );
@@ -82,6 +94,46 @@ db.exec(`
     detalle TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS modelo_versiones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    modelo_id INTEGER REFERENCES modelos(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id),
+    cuerpo TEXT NOT NULL,
+    nombre TEXT,
+    descripcion TEXT,
+    etiquetas TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS expedientes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id),
+    clave TEXT NOT NULL,
+    campos TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_exp_user_clave ON expedientes(user_id, clave);
+
+  CREATE TABLE IF NOT EXISTS campo_tipos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    modelo_id INTEGER REFERENCES modelos(id) ON DELETE CASCADE,
+    campo TEXT NOT NULL,
+    tipo TEXT NOT NULL DEFAULT 'texto' CHECK(tipo IN ('texto','fecha','importe','lista','numero','booleano')),
+    config TEXT DEFAULT '{}',
+    UNIQUE(modelo_id, campo)
+  );
+
+  CREATE TABLE IF NOT EXISTS campo_catalogo (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    clave TEXT UNIQUE NOT NULL,
+    nombre TEXT NOT NULL DEFAULT '',
+    tipo TEXT NOT NULL DEFAULT 'texto' CHECK(tipo IN ('texto','fecha','importe','lista','numero','booleano')),
+    descripcion TEXT DEFAULT '',
+    valor_defecto TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
   
 `);
 
@@ -92,45 +144,100 @@ try {
   // Columna ya existe, ignorar
 }
 
-// ─── SEED ─────────────────────────────────────────────────────────────────────
+function extractFieldNames(text) {
+  return [...new Set((String(text || '').match(FIELD_RE) || []).map(f => f.slice(2, -2)))];
+}
+
+function humanizeFieldName(clave) {
+  return String(clave || '')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/^\w/, c => c.toUpperCase());
+}
+
+function syncGlobalField(clave, data = {}) {
+  const key = String(clave || '').trim().toUpperCase();
+  if (!key) return;
+  const tipo = ['texto', 'fecha', 'importe', 'lista', 'numero', 'booleano'].includes(data.tipo) ? data.tipo : 'texto';
+  const nombre = String(data.nombre || '').trim() || humanizeFieldName(key);
+  const descripcion = String(data.descripcion || '').trim();
+  const valorDefecto = String(data.valor_defecto || '').trim();
+  const existing = db.prepare('SELECT id, nombre, tipo, descripcion, valor_defecto FROM campo_catalogo WHERE clave=?').get(key);
+  if (existing) {
+    db.prepare(`UPDATE campo_catalogo
+      SET nombre=?, tipo=?, descripcion=?, valor_defecto=?, updated_at=datetime('now')
+      WHERE clave=?`).run(
+        data.nombre ? nombre : existing.nombre || nombre,
+        data.tipo ? tipo : existing.tipo || tipo,
+        data.descripcion !== undefined ? descripcion : existing.descripcion || '',
+        data.valor_defecto !== undefined ? valorDefecto : existing.valor_defecto || '',
+        key
+      );
+  } else {
+    db.prepare(`INSERT INTO campo_catalogo (clave,nombre,tipo,descripcion,valor_defecto)
+      VALUES (?,?,?,?,?)`).run(key, nombre, tipo, descripcion, valorDefecto);
+  }
+}
+
+function syncGlobalFieldsFromText(text, tipoByField = {}) {
+  const fields = extractFieldNames(text);
+  fields.forEach(clave => syncGlobalField(clave, { tipo: tipoByField[clave] }));
+}
+
+function syncGlobalFieldsFromModel(modeloId, cuerpo) {
+  const tipos = Object.fromEntries(
+    db.prepare('SELECT campo,tipo FROM campo_tipos WHERE modelo_id=?').all(modeloId).map(r => [r.campo, r.tipo])
+  );
+  syncGlobalFieldsFromText(cuerpo, tipos);
+  Object.entries(tipos).forEach(([campo, tipo]) => syncGlobalField(campo, { tipo }));
+}
+
+function seedGlobalFieldCatalog() {
+  const modelos = db.prepare('SELECT id, cuerpo FROM modelos').all();
+  modelos.forEach(m => syncGlobalFieldsFromModel(m.id, m.cuerpo || ''));
+}
+
+seedGlobalFieldCatalog();
+
+// ??? SEED ?????????????????????????????????????????????????????????????????????
 const userCount = db.prepare('SELECT COUNT(*) as n FROM users').get();
 if (userCount.n === 0) {
   const h = (p) => bcrypt.hashSync(p, 10);
-  db.prepare(`INSERT INTO users (nombre,email,password_hash,rol) VALUES (?,?,?,?)`).run('Ana López','admin@ayuntamiento.es',h('admin123'),'admin');
-  db.prepare(`INSERT INTO users (nombre,email,password_hash,rol) VALUES (?,?,?,?)`).run('Carlos Martín','carlos@ayuntamiento.es',h('editor123'),'editor');
-  db.prepare(`INSERT INTO users (nombre,email,password_hash,rol) VALUES (?,?,?,?)`).run('María Gómez','maria@ayuntamiento.es',h('editor123'),'editor');
+  db.prepare(`INSERT INTO users (nombre,email,password_hash,rol) VALUES (?,?,?,?)`).run('Ana Lopez','admin@ayuntamiento.es',h('admin123'),'admin');
+  db.prepare(`INSERT INTO users (nombre,email,password_hash,rol) VALUES (?,?,?,?)`).run('Carlos Martin','carlos@ayuntamiento.es',h('editor123'),'editor');
+  db.prepare(`INSERT INTO users (nombre,email,password_hash,rol) VALUES (?,?,?,?)`).run('Maria Gomez','maria@ayuntamiento.es',h('editor123'),'editor');
   db.prepare(`INSERT INTO users (nombre,email,password_hash,rol) VALUES (?,?,?,?)`).run('Pedro Ruiz','pedro@ayuntamiento.es',h('consultor123'),'consultor');
 }
 
 const catCount = db.prepare('SELECT COUNT(*) as n FROM categorias').get();
 if (catCount.n === 0) {
   const cats = [
-    ['Pleno','Acuerdos adoptados en sesión plenaria','🏛️','blue',1],
-    ['Junta de Gobierno','Acuerdos de la Junta de Gobierno Local','👥','teal',2],
-    ['Decreto de Alcaldía','Decretos y resoluciones de Alcaldía','📋','amber',3],
-    ['Resolución','Resoluciones administrativas','✅','green',4],
-    ['Convenio','Convenios y acuerdos de colaboración','🤝','purple',5],
+    ['Pleno','Acuerdos adoptados en sesion plenaria','???','blue',1],
+    ['Junta de Gobierno','Acuerdos de la Junta de Gobierno Local','??','teal',2],
+    ['Decreto de Alcaldia','Decretos y resoluciones de Alcaldia','??','amber',3],
+    ['Resolucion','Resoluciones administrativas','?','green',4],
+    ['Convenio','Convenios y acuerdos de colaboracion','??','purple',5],
   ];
   const insC = db.prepare(`INSERT INTO categorias (nombre,descripcion,icono,color,orden,created_by) VALUES (?,?,?,?,?,1)`);
   cats.forEach(c => insC.run(...c));
 
   const modelos = [
-    [1, 'Acuerdo de Pleno — Aprobación de Presupuesto', 'activo',
-     'Modelo para aprobación de presupuesto municipal en sesión plenaria ordinaria.',
+    [1, 'Acuerdo de Pleno - Aprobacin de Presupuesto', 'activo',
+     'Modelo para aprobacin de presupuesto municipal en sesion plenaria ordinaria.',
      '["presupuesto","pleno","hacienda"]',
-     `# ACUERDO DE PLENO — {{MUNICIPIO}}
+     `# ACUERDO DE PLENO - {{MUNICIPIO}}
 
-## Sesión N.º {{NUMERO_SESION}}
+## Sesin N. {{NUMERO_SESION}}
 
-En **{{MUNICIPIO}}**, siendo las doce horas del día {{FECHA_SESION}}, bajo la presidencia del Alcalde **{{ALCALDE_NOMBRE}}**, y con asistencia del Secretario **{{SECRETARIO_NOMBRE}}**, se reúne en sesión ordinaria el Pleno del Ayuntamiento.
+En **{{MUNICIPIO}}**, siendo las doce horas del da {{FECHA_SESION}}, bajo la presidencia del Alcalde **{{ALCALDE_NOMBRE}}**, y con asistencia del Secretario **{{SECRETARIO_NOMBRE}}**, se rene en sesion ordinaria el Pleno del Ayuntamiento.
 
-**EXPEDIENTE NÚM. {{NUMERO_EXPEDIENTE}}**
+**EXPEDIENTE NM. {{NUMERO_EXPEDIENTE}}**
 
-Visto el informe del departamento de {{DEPARTAMENTO}} relativo al ejercicio {{EJERCICIO_PRESUPUESTARIO}}, y habiendo sido sometido a votación con resultado {{VOTACION_RESULTADO}}, el Pleno Municipal acuerda:
+Visto el informe del departamento de {{DEPARTAMENTO}} relativo al ejercicio {{EJERCICIO_PRESUPUESTARIO}}, y habiendo sido sometido a votacin con resultado {{VOTACION_RESULTADO}}, el Pleno Municipal acuerda:
 
 **PRIMERO.** Aprobar el presupuesto municipal por importe de {{IMPORTE}} euros para {{CONCEPTO}}.
 
-**SEGUNDO.** Proceder a su publicación en el BOP el {{FECHA_PUBLICACION}}.
+**SEGUNDO.** Proceder a su publicacin en el BOP el {{FECHA_PUBLICACION}}.
 
 ---
 
@@ -138,40 +245,40 @@ Lo que se hace constar para los oportunos efectos.
 
 - El Alcalde: {{ALCALDE_NOMBRE}}
 - El Secretario: {{SECRETARIO_NOMBRE}}`],
-    [3, 'Decreto de Alcaldía — Contratación', 'activo',
-     'Modelo de decreto para procesos de contratación.',
-     '["contratación","decreto"]',
-     `# DECRETO DE ALCALDÍA N.º {{NUMERO_DECRETO}}
+    [3, 'Decreto de Alcaldia - Contratacin', 'activo',
+     'Modelo de decreto para procesos de contratacion.',
+     '["contratacion","decreto"]',
+     `# DECRETO DE ALCALDA N. {{NUMERO_DECRETO}}
 
 En **{{MUNICIPIO}}**, a {{FECHA_DECRETO}}.
 
-El Alcalde-Presidente, **{{ALCALDE_NOMBRE}}**, en uso de las atribuciones que le confiere la legislación vigente,
+El Alcalde-Presidente, **{{ALCALDE_NOMBRE}}**, en uso de las atribuciones que le confiere la legislacin vigente,
 
 ## RESUELVE
 
-**PRIMERO.** Aprobar el inicio del expediente de contratación para **{{OBJETO_CONTRATO}}** con presupuesto base de licitación de {{IMPORTE}} euros.
+**PRIMERO.** Aprobar el inicio del expediente de contratacion para **{{OBJETO_CONTRATO}}** con presupuesto base de licitacion de {{IMPORTE}} euros.
 
 **SEGUNDO.** Autorizar el gasto con cargo a la partida presupuestaria {{PARTIDA_PRESUPUESTARIA}}.
 
-**TERCERO.** Contra la presente resolución podrá interponerse recurso de reposición en el plazo de un mes.
+**TERCERO.** Contra la presente resolucin podr interponerse recurso de reposicin en el plazo de un mes.
 
 ---
 
-El Alcalde — {{ALCALDE_NOMBRE}}`],
-    [5, 'Convenio de Colaboración Interadministrativa', 'borrador',
+El Alcalde - {{ALCALDE_NOMBRE}}`],
+    [5, 'Convenio de Colaboracin Interadministrativa', 'borrador',
      'Plantilla base para convenios con otras administraciones.',
-     '["convenio","colaboración"]',
-     `# CONVENIO DE COLABORACIÓN
+     '["convenio","colaboracion"]',
+     `# CONVENIO DE COLABORACIN
 
 Entre el **Ayuntamiento de {{MUNICIPIO}}**, representado por {{ALCALDE_NOMBRE}}, y **{{ENTIDAD_COLABORADORA}}**, representada por {{REPRESENTANTE_ENTIDAD}}.
 
-## CLÁUSULAS
+## CLUSULAS
 
 **PRIMERA.** El objeto del presente convenio es {{OBJETO_CONVENIO}}.
 
-**SEGUNDA.** La vigencia será desde {{FECHA_INICIO}} hasta {{FECHA_FIN}}.
+**SEGUNDA.** La vigencia ser desde {{FECHA_INICIO}} hasta {{FECHA_FIN}}.
 
-**TERCERA.** La aportación del Ayuntamiento será de {{IMPORTE}} euros.
+**TERCERA.** La aportacin del Ayuntamiento ser de {{IMPORTE}} euros.
 
 ---
 
@@ -185,7 +292,7 @@ En {{MUNICIPIO}}, a {{FECHA_FIRMA}}.
   syncFolders();
 }
 
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
+// ??? HELPERS ??????????????????????????????????????????????????????????????????
 function sanitizeName(name) {
   // Remove invalid filesystem characters
   return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').replace(/\s+/g, '_').trim();
@@ -205,15 +312,103 @@ function syncFolders() {
   });
 }
 
-// ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
+// ??? MIDDLEWARE ???????????????????????????????????????????????????????????????
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '5mb' }));
+app.set('trust proxy', 1);
+
+function parseCookies(header) {
+  return (header || '').split(';').reduce((acc, part) => {
+    const idx = part.indexOf('=');
+    if (idx === -1) return acc;
+    const key = part.slice(0, idx).trim();
+    const value = part.slice(idx + 1).trim();
+    if (key) acc[key] = decodeURIComponent(value);
+    return acc;
+  }, {});
+}
+
+function setAuthCookie(res, token) {
+  const secure = process.env.NODE_ENV === 'production';
+  const parts = [
+    `auth_token=${encodeURIComponent(token)}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    `Max-Age=${8 * 60 * 60}`,
+  ];
+  if (secure) parts.push('Secure');
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
+function clearAuthCookie(res) {
+  const secure = process.env.NODE_ENV === 'production';
+  const parts = [
+    'auth_token=',
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    'Max-Age=0',
+  ];
+  if (secure) parts.push('Secure');
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
+const loginAttempts = new Map();
+
+function loginKeys(req, email) {
+  const ip = req.ip || 'unknown';
+  const identity = String(email || '').toLowerCase().trim();
+  return identity ? [ip, `${ip}::${identity}`] : [ip];
+}
+
+function cleanupLoginAttempts() {
+  const now = Date.now();
+  for (const [key, data] of loginAttempts.entries()) {
+    if ((data.blockedUntil || 0) <= now && (data.lastAttempt || 0) + LOGIN_WINDOW_MS < now) {
+      loginAttempts.delete(key);
+    }
+  }
+}
+
+function getBlockedLoginState(keys) {
+  const now = Date.now();
+  for (const key of keys) {
+    const data = loginAttempts.get(key);
+    if (data && data.blockedUntil && data.blockedUntil > now) return data;
+  }
+  return null;
+}
+
+function recordLoginFailure(keys) {
+  const now = Date.now();
+  for (const key of keys) {
+    const data = loginAttempts.get(key) || { attempts: 0, firstAttempt: now, lastAttempt: now, blockedUntil: 0 };
+    if ((data.firstAttempt || 0) + LOGIN_WINDOW_MS < now) {
+      data.attempts = 0;
+      data.firstAttempt = now;
+    }
+    data.attempts += 1;
+    data.lastAttempt = now;
+    if (data.attempts >= LOGIN_MAX_ATTEMPTS) {
+      data.blockedUntil = now + LOGIN_LOCK_MS;
+    }
+    loginAttempts.set(key, data);
+  }
+}
+
+function clearLoginAttempts(keys) {
+  keys.forEach(key => loginAttempts.delete(key));
+}
+
+setInterval(cleanupLoginAttempts, LOGIN_WINDOW_MS).unref?.();
 
 function auth(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
+  const bearer = req.headers.authorization?.split(' ')[1];
+  const token = bearer || parseCookies(req.headers.cookie).auth_token;
   if (!token) return res.status(401).json({ error: 'No autenticado' });
   try { req.user = jwt.verify(token, JWT_SECRET); next(); }
-  catch { res.status(401).json({ error: 'Token inválido' }); }
+  catch { res.status(401).json({ error: 'Token invlido' }); }
 }
 
 function role(...roles) {
@@ -223,21 +418,36 @@ function role(...roles) {
   };
 }
 
-// ─── AUTH ─────────────────────────────────────────────────────────────────────
+// ??? AUTH ?????????????????????????????????????????????????????????????????????
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
+  const keys = loginKeys(req, email);
+  const blocked = getBlockedLoginState(keys);
+  if (blocked && blocked.blockedUntil && blocked.blockedUntil > Date.now()) {
+    const remaining = Math.ceil((blocked.blockedUntil - Date.now()) / 1000);
+    return res.status(429).json({ error: `Demasiados intentos. Prueba de nuevo en ${remaining}s.` });
+  }
   const user = db.prepare('SELECT * FROM users WHERE email=? AND activo=1').get(email);
-  if (!user || !bcrypt.compareSync(password, user.password_hash))
+  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    recordLoginFailure(keys);
     return res.status(401).json({ error: 'Credenciales incorrectas' });
+  }
+  clearLoginAttempts(keys);
   const token = jwt.sign({ id:user.id, nombre:user.nombre, email:user.email, rol:user.rol }, JWT_SECRET, { expiresIn:'8h' });
+  setAuthCookie(res, token);
   res.json({ token, user: { id:user.id, nombre:user.nombre, email:user.email, rol:user.rol } });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearAuthCookie(res);
+  res.json({ ok: true });
 });
 
 app.get('/api/auth/me', auth, (req, res) => {
   res.json(db.prepare('SELECT id,nombre,email,rol FROM users WHERE id=?').get(req.user.id));
 });
 
-// ─── USERS ────────────────────────────────────────────────────────────────────
+// ??? USERS ????????????????????????????????????????????????????????????????????
 app.get('/api/users', auth, (req, res) => {
   res.json(db.prepare('SELECT id,nombre,email,rol,activo,created_at FROM users ORDER BY nombre').all());
 });
@@ -258,7 +468,7 @@ app.put('/api/users/:id', auth, role('admin'), (req, res) => {
   res.json({ ok: true });
 });
 
-// ─── CATEGORÍAS ───────────────────────────────────────────────────────────────
+// ??? CATEGORAS ???????????????????????????????????????????????????????????????
 app.get('/api/categorias', auth, (req, res) => {
   res.json(db.prepare(`SELECT c.*, COUNT(m.id) as total_modelos FROM categorias c LEFT JOIN modelos m ON m.categoria_id=c.id GROUP BY c.id ORDER BY c.orden, c.nombre`).all());
 });
@@ -266,17 +476,17 @@ app.get('/api/categorias', auth, (req, res) => {
 app.post('/api/categorias', auth, role('admin'), (req, res) => {
   const { nombre, descripcion, icono, color, orden, parent_id } = req.body;
   if (!nombre) return res.status(400).json({ error: 'Nombre requerido' });
-  // Solo se puede asignar modelos a subcategorías (hijos), no a raíz
+  // Solo se puede asignar modelos a subcategorias (hijos), no a raiz
   const r = db.prepare(`INSERT INTO categorias (nombre,descripcion,icono,color,orden,parent_id,created_by)
     VALUES (?,?,?,?,?,?,?)`)
-    .run(nombre, descripcion||'', icono||'📄', color||'blue', orden||0, parent_id||null, req.user.id);
+    .run(nombre, descripcion||'', icono||'*', color||'blue', orden||0, parent_id||null, req.user.id);
   res.json({ id: r.lastInsertRowid });
 });
 
 app.put('/api/categorias/:id', auth, role('admin'), (req, res) => {
   const { nombre, descripcion, icono, color, orden, activa, parent_id } = req.body;
   db.prepare(`UPDATE categorias SET nombre=?,descripcion=?,icono=?,color=?,orden=?,activa=?,parent_id=? WHERE id=?`)
-    .run(nombre, descripcion||'', icono||'📄', color||'blue', orden||0, activa??1, parent_id||null, req.params.id);
+    .run(nombre, descripcion||'', icono||'*', color||'blue', orden||0, activa ?? 1, parent_id||null, req.params.id);
   res.json({ ok: true });
 });
 
@@ -284,7 +494,7 @@ app.delete('/api/categorias/:id', auth, role('admin'), (req, res) => {
   const cat = db.prepare('SELECT * FROM categorias WHERE id=?').get(req.params.id);
   if (!cat) return res.status(404).json({ error: 'No encontrada' });
   const n = db.prepare('SELECT COUNT(*) as n FROM modelos WHERE categoria_id=?').get(req.params.id).n;
-  if (n > 0) return res.status(400).json({ error: `Tiene ${n} modelo(s). Reasígnalos primero.` });
+  if (n > 0) return res.status(400).json({ error: `Tiene ${n} modelo(s). Reasgnalos primero.` });
   db.prepare('DELETE FROM categorias WHERE id=?').run(req.params.id);
   try { const d = path.join(FILES_DIR, sanitizeName(cat.nombre)); if (fs.existsSync(d)) fs.rmdirSync(d); } catch {}
   res.json({ ok: true });
@@ -297,11 +507,11 @@ app.get('/api/categorias/:id/archivos', auth, (req, res) => {
   if (!fs.existsSync(dir)) return res.json([]);
   res.json(fs.readdirSync(dir).map(f => {
     const s = fs.statSync(path.join(dir, f));
-    return { nombre: f, tamaño: s.size, modificado: s.mtime };
+    return { nombre: f, tamao: s.size, modificado: s.mtime };
   }));
 });
 
-// ─── PLANTILLAS ODT ───────────────────────────────────────────────────────────
+// ??? PLANTILLAS ODT ???????????????????????????????????????????????????????????
 const templateUpload = multer({
   storage: multer.diskStorage({
     destination: TEMPLATES_DIR,
@@ -340,7 +550,7 @@ app.delete('/api/plantillas/:id', auth, role('admin'), (req, res) => {
   res.json({ ok: true });
 });
 
-// ─── MODELOS ──────────────────────────────────────────────────────────────────
+// ??? MODELOS ??????????????????????????????????????????????????????????????????
 app.get('/api/modelos', auth, (req, res) => {
   const { estado, categoria_id, q } = req.query;
   let sql = `SELECT m.*, c.nombre as categoria_nombre, c.icono as categoria_icono, c.color as categoria_color,
@@ -350,7 +560,7 @@ app.get('/api/modelos', auth, (req, res) => {
   const p = [];
   if (estado)       { sql += ' AND m.estado=?';               p.push(estado); }
   if (categoria_id) { sql += ' AND m.categoria_id=?';         p.push(categoria_id); }
-  if (q)            { sql += ' AND (m.nombre LIKE ? OR m.descripcion LIKE ?)'; p.push(`%${q}%`, `%${q}%`); }
+  if (q)            { sql += ' AND (m.nombre LIKE ? OR m.descripcion LIKE ? OR m.cuerpo LIKE ?)'; p.push(`%${q}%`, `%${q}%`, `%${q}%`); }
   sql += ' ORDER BY m.updated_at DESC';
   res.json(db.prepare(sql).all(...p));
 });
@@ -372,15 +582,23 @@ app.post('/api/modelos', auth, role('admin','editor'), (req, res) => {
   if (!nombre) return res.status(400).json({ error: 'Nombre requerido' });
   const r = db.prepare(`INSERT INTO modelos (nombre,categoria_id,estado,descripcion,cuerpo,etiquetas,owner_id,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?)`)
     .run(nombre, categoria_id||null, estado||'borrador', descripcion||'', cuerpo||'', JSON.stringify(etiquetas||[]), req.user.id, req.user.id, req.user.id);
-  db.prepare('INSERT INTO actividad (modelo_id,user_id,accion) VALUES (?,?,?)').run(r.lastInsertRowid, req.user.id, 'creó el modelo');
+  syncGlobalFieldsFromModel(r.lastInsertRowid, cuerpo || '');
+  db.prepare('INSERT INTO actividad (modelo_id,user_id,accion) VALUES (?,?,?)').run(r.lastInsertRowid, req.user.id, 'cre el modelo');
   res.json({ id: r.lastInsertRowid });
 });
 
 app.put('/api/modelos/:id', auth, role('admin','editor'), (req, res) => {
   const { nombre, categoria_id, estado, descripcion, cuerpo, etiquetas } = req.body;
+  const prev = db.prepare('SELECT cuerpo,nombre,descripcion,etiquetas FROM modelos WHERE id=?').get(req.params.id);
+  if (prev) {
+    db.prepare(`INSERT INTO modelo_versiones (modelo_id,user_id,cuerpo,nombre,descripcion,etiquetas) VALUES (?,?,?,?,?,?)`)
+      .run(req.params.id, req.user.id, prev.cuerpo, prev.nombre, prev.descripcion, prev.etiquetas);
+    db.prepare(`DELETE FROM modelo_versiones WHERE modelo_id=? AND id NOT IN (SELECT id FROM modelo_versiones WHERE modelo_id=? ORDER BY id DESC LIMIT 20)`).run(req.params.id, req.params.id);
+  }
   db.prepare(`UPDATE modelos SET nombre=?,categoria_id=?,estado=?,descripcion=?,cuerpo=?,etiquetas=?,updated_by=?,updated_at=datetime('now') WHERE id=?`)
     .run(nombre, categoria_id||null, estado, descripcion, cuerpo, JSON.stringify(etiquetas||[]), req.user.id, req.params.id);
-  db.prepare('INSERT INTO actividad (modelo_id,user_id,accion) VALUES (?,?,?)').run(req.params.id, req.user.id, 'guardó cambios');
+  syncGlobalFieldsFromModel(req.params.id, cuerpo || '');
+  db.prepare('INSERT INTO actividad (modelo_id,user_id,accion) VALUES (?,?,?)').run(req.params.id, req.user.id, 'guard cambios');
   res.json({ ok: true });
 });
 
@@ -389,7 +607,7 @@ app.delete('/api/modelos/:id', auth, role('admin'), (req, res) => {
   res.json({ ok: true });
 });
 
-// ─── EXPORT ODT (via Python) ──────────────────────────────────────────────────
+// ??? EXPORT ODT (via Python) ??????????????????????????????????????????????????
 // Get available styles from template
 app.get('/api/modelos/:id/plantilla-estilos', auth, (req, res) => {
   const plantillaId = req.query.plantilla_id;
@@ -443,17 +661,17 @@ app.post('/api/modelos/:id/estilo-config', auth, (req, res) => {
       .run(JSON.stringify(config), req.params.id);
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: 'Error guardando configuración' });
+    res.status(500).json({ error: 'Error guardando configuracin' });
   }
 });
 
-app.get('/api/modelos/:id/export/odt', auth, async (req, res) => {
+// ??? Helper compartido para generar ODT ???????????????????????????????????????
+async function _doExportOdt(req, res, plantillaId, camposObj) {
   const modelo = db.prepare(`SELECT m.*,c.nombre as categoria_nombre FROM modelos m
     LEFT JOIN categorias c ON m.categoria_id=c.id WHERE m.id=?`).get(req.params.id);
   if (!modelo) return res.status(404).json({ error: 'No encontrado' });
 
   // Determine template
-  const plantillaId = req.query.plantilla_id;
   let templatePath = null;
   if (plantillaId) {
     const p = db.prepare('SELECT filename FROM plantillas WHERE id=?').get(plantillaId);
@@ -463,14 +681,26 @@ app.get('/api/modelos/:id/export/odt', auth, async (req, res) => {
     if (def) templatePath = path.join(TEMPLATES_DIR, def.filename);
   }
 
+  // Sustituir campos {{CAMPO}} por los valores proporcionados
+  let cuerpo = modelo.cuerpo || '';
+  if (camposObj && typeof camposObj === 'object') {
+    for (const [campo, valor] of Object.entries(camposObj)) {
+      if (valor && String(valor).trim()) {
+        const re = new RegExp(`\\{\\{${campo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\}\\}`, 'g');
+        cuerpo = cuerpo.replace(re, String(valor).trim());
+      }
+    }
+  }
+
   // Prepare temp files
   const tmpId = `${Date.now()}_${modelo.id}`;
-  const inputJson = path.join('/tmp', `${tmpId}_in.json`);
-  const outputOdt = path.join('/tmp', `${tmpId}_out.odt`);
+  const tmpDir = os.tmpdir();
+  const inputJson = path.join(tmpDir, `${tmpId}_in.json`);
+  const outputOdt = path.join(tmpDir, `${tmpId}_out.odt`);
 
   const payload = {
     title: modelo.nombre,
-    markdown: modelo.cuerpo,
+    markdown: cuerpo,
     categoria: modelo.categoria_nombre || '',
     estilo_config: modelo.estilo_config ? JSON.parse(modelo.estilo_config) : {}
   };
@@ -483,8 +713,9 @@ app.get('/api/modelos/:id/export/odt', auth, async (req, res) => {
   if (templatePath && fs.existsSync(templatePath)) args.push(templatePath);
 
   try {
+    const pythonBin = process.env.PYTHON_BIN || (process.platform === 'win32' ? 'python' : 'python3');
     await new Promise((resolve, reject) => {
-      execFile('python3', args, { timeout: 30000 }, (err, stdout, stderr) => {
+      execFile(pythonBin, args, { timeout: 30000 }, (err, stdout, stderr) => {
         if (err) { reject(new Error(stderr || err.message)); return; }
         resolve();
       });
@@ -499,7 +730,7 @@ app.get('/api/modelos/:id/export/odt', auth, async (req, res) => {
       fs.writeFileSync(path.join(dir, `${sanitizeName(modelo.nombre)}_${Date.now()}.odt`), buf);
     }
 
-    db.prepare('INSERT INTO actividad (modelo_id,user_id,accion) VALUES (?,?,?)').run(modelo.id, req.user.id, 'exportó a .odt');
+    db.prepare('INSERT INTO actividad (modelo_id,user_id,accion) VALUES (?,?,?)').run(modelo.id, req.user.id, 'export a .odt');
 
     res.setHeader('Content-Type', 'application/vnd.oasis.opendocument.text');
     const filename = sanitizeForHeader(modelo.nombre || 'modelo') + '.odt';
@@ -511,18 +742,190 @@ app.get('/api/modelos/:id/export/odt', auth, async (req, res) => {
   } finally {
     [inputJson, outputOdt].forEach(f => { try { fs.unlinkSync(f); } catch {} });
   }
+}
+
+// GET: exportar sin sustitucion de campos (compatibilidad)
+app.get('/api/modelos/:id/export/odt', auth, async (req, res) => {
+  const plantillaId = req.query.plantilla_id || null;
+  await _doExportOdt(req, res, plantillaId, null);
 });
 
-// ─── ACTIVIDAD ────────────────────────────────────────────────────────────────
+// POST: exportar con sustitucion de campos {{ }} por valores del formulario
+app.post('/api/modelos/:id/export/odt', auth, async (req, res) => {
+  const { plantilla_id, campos } = req.body;
+  await _doExportOdt(req, res, plantilla_id || null, campos || {});
+});
+
+// ??? ACTIVIDAD ????????????????????????????????????????????????????????????????
 app.post('/api/modelos/:id/actividad', auth, (req, res) => {
   db.prepare('INSERT INTO actividad (modelo_id,user_id,accion,detalle) VALUES (?,?,?,?)')
     .run(req.params.id, req.user.id, req.body.accion, req.body.detalle || null);
   res.json({ ok: true });
 });
 
-app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '3.0.0' }));
+// ??? AUTOSAVE ??????????????????????????????????????????????????????????????????
+app.post('/api/modelos/:id/autosave', auth, role('admin','editor'), (req, res) => {
+  const { cuerpo } = req.body;
+  db.prepare(`UPDATE modelos SET cuerpo=?, updated_by=?, updated_at=datetime('now') WHERE id=?`)
+    .run(cuerpo || '', req.user.id, req.params.id);
+  syncGlobalFieldsFromModel(req.params.id, cuerpo || '');
+  res.json({ ok: true });
+});
 
-app.listen(PORT, () => console.log(`Acuerdos API v3 — puerto ${PORT}`));
+// ??? VERSIONES ????????????????????????????????????????????????????????????????
+app.get('/api/modelos/:id/versiones', auth, (req, res) => {
+  const rows = db.prepare(`SELECT v.*, u.nombre as user_nombre FROM modelo_versiones v LEFT JOIN users u ON v.user_id=u.id WHERE v.modelo_id=? ORDER BY v.id DESC LIMIT 20`).all(req.params.id);
+  res.json(rows);
+});
+
+app.post('/api/modelos/:id/restore', auth, role('admin','editor'), (req, res) => {
+  const { version_id } = req.body;
+  const v = db.prepare('SELECT * FROM modelo_versiones WHERE id=? AND modelo_id=?').get(version_id, req.params.id);
+  if (!v) return res.status(404).json({ error: 'Version no encontrada' });
+  const prev = db.prepare('SELECT cuerpo,nombre,descripcion,etiquetas FROM modelos WHERE id=?').get(req.params.id);
+  if (prev) {
+    db.prepare(`INSERT INTO modelo_versiones (modelo_id,user_id,cuerpo,nombre,descripcion,etiquetas) VALUES (?,?,?,?,?,?)`)
+      .run(req.params.id, req.user.id, prev.cuerpo, prev.nombre, prev.descripcion, prev.etiquetas);
+  }
+  db.prepare(`UPDATE modelos SET cuerpo=?, nombre=?, descripcion=?, etiquetas=?, updated_by=?, updated_at=datetime('now') WHERE id=?`)
+    .run(v.cuerpo, v.nombre, v.descripcion, v.etiquetas, req.user.id, req.params.id);
+  syncGlobalFieldsFromModel(req.params.id, v.cuerpo || '');
+  db.prepare('INSERT INTO actividad (modelo_id,user_id,accion,detalle) VALUES (?,?,?,?)')
+    .run(req.params.id, req.user.id, 'restaur version', `version #${v.id}`);
+  res.json({ ok: true });
+});
+
+// ??? PREVIEW ???????????????????????????????????????????????????????????????????
+app.post('/api/modelos/:id/preview', auth, (req, res) => {
+  const modelo = db.prepare(`SELECT m.*,c.nombre as categoria_nombre FROM modelos m LEFT JOIN categorias c ON m.categoria_id=c.id WHERE m.id=?`).get(req.params.id);
+  if (!modelo) return res.status(404).json({ error: 'No encontrado' });
+  let cuerpo = modelo.cuerpo || '';
+  const camposObj = req.body.campos || {};
+  if (camposObj && typeof camposObj === 'object') {
+    for (const [campo, valor] of Object.entries(camposObj)) {
+      if (valor && String(valor).trim()) {
+        const re = new RegExp(`\\{\\{${campo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\}\\}`, 'g');
+        cuerpo = cuerpo.replace(re, String(valor).trim());
+      }
+    }
+  }
+  res.json({ cuerpo, nombre: modelo.nombre, categoria: modelo.categoria_nombre || '' });
+});
+
+// ??? EXPORT PDF ????????????????????????????????????????????????????????????????
+async function _doExportPdf(req, res, camposObj) {
+  const modelo = db.prepare(`SELECT m.*,c.nombre as categoria_nombre FROM modelos m LEFT JOIN categorias c ON m.categoria_id=c.id WHERE m.id=?`).get(req.params.id);
+  if (!modelo) return res.status(404).json({ error: 'No encontrado' });
+  let cuerpo = modelo.cuerpo || '';
+  if (camposObj && typeof camposObj === 'object') {
+    for (const [campo, valor] of Object.entries(camposObj)) {
+      if (valor && String(valor).trim()) {
+        const re = new RegExp(`\\{\\{${campo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\}\\}`, 'g');
+        cuerpo = cuerpo.replace(re, String(valor).trim());
+      }
+    }
+  }
+  const tmpId = `${Date.now()}_${modelo.id}`;
+  const tmpDir = os.tmpdir();
+  const inputJson = path.join(tmpDir, `${tmpId}_in.json`);
+  const outputPdf = path.join(tmpDir, `${tmpId}_out.pdf`);
+  const payload = {
+    title: modelo.nombre,
+    markdown: cuerpo,
+    categoria: modelo.categoria_nombre || ''
+  };
+  fs.writeFileSync(inputJson, JSON.stringify(payload));
+  try {
+    const pythonBin = process.env.PYTHON_BIN || (process.platform === 'win32' ? 'python' : 'python3');
+    await new Promise((resolve, reject) => {
+      execFile(pythonBin, [
+        path.join(__dirname, 'scripts/export_pdf.py'),
+        inputJson, outputPdf
+      ], { timeout: 30000 }, (err, stdout, stderr) => {
+        if (err) { reject(new Error(stderr || err.message)); return; }
+        resolve();
+      });
+    });
+    const buf = fs.readFileSync(outputPdf);
+    db.prepare('INSERT INTO actividad (modelo_id,user_id,accion) VALUES (?,?,?)').run(modelo.id, req.user.id, 'export a .pdf');
+    res.setHeader('Content-Type', 'application/pdf');
+    const filename = sanitizeForHeader(modelo.nombre || 'modelo') + '.pdf';
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buf);
+  } catch (e) {
+    console.error('PDF export error:', e.message);
+    res.status(500).json({ error: 'Error generando PDF: ' + e.message });
+  } finally {
+    [inputJson, outputPdf].forEach(f => { try { fs.unlinkSync(f); } catch {} });
+  }
+}
+
+app.post('/api/modelos/:id/export/pdf', auth, async (req, res) => {
+  await _doExportPdf(req, res, req.body.campos || {});
+});
+
+// ??? EXPEDIENTES BD ???????????????????????????????????????????????????????????
+app.get('/api/expedientes', auth, (req, res) => {
+  const rows = db.prepare(`SELECT clave, campos, updated_at FROM expedientes WHERE user_id=? ORDER BY updated_at DESC LIMIT 50`).all(req.user.id);
+  res.json(rows.map(r => ({ clave: r.clave, campos: JSON.parse(r.campos || '{}'), updated_at: r.updated_at })));
+});
+
+app.post('/api/expedientes', auth, (req, res) => {
+  const { clave, campos } = req.body;
+  if (!clave || !clave.trim()) return res.status(400).json({ error: 'Clave requerida' });
+  const existing = db.prepare('SELECT id FROM expedientes WHERE user_id=? AND clave=?').get(req.user.id, clave.trim());
+  if (existing) {
+    db.prepare(`UPDATE expedientes SET campos=?, updated_at=datetime('now') WHERE id=?`).run(JSON.stringify(campos || {}), existing.id);
+  } else {
+    db.prepare(`INSERT INTO expedientes (user_id,clave,campos) VALUES (?,?,?)`).run(req.user.id, clave.trim(), JSON.stringify(campos || {}));
+  }
+  res.json({ ok: true });
+});
+
+app.delete('/api/expedientes/:clave', auth, (req, res) => {
+  db.prepare('DELETE FROM expedientes WHERE user_id=? AND clave=?').run(req.user.id, req.params.clave);
+  res.json({ ok: true });
+});
+
+// Biblioteca global de campos reutilizables
+app.get('/api/campos-globales', auth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT clave,nombre,tipo,descripcion,valor_defecto,updated_at
+    FROM campo_catalogo
+    ORDER BY clave
+  `).all();
+  res.json(rows);
+});
+
+app.post('/api/campos-globales', auth, role('admin','editor'), (req, res) => {
+  const { clave, nombre, tipo, descripcion, valor_defecto } = req.body;
+  if (!clave) return res.status(400).json({ error: 'Clave requerida' });
+  syncGlobalField(clave, { nombre, tipo, descripcion, valor_defecto });
+  res.json({ ok: true });
+});
+
+// ??? CAMPO TIPOS ???????????????????????????????????????????????????????????????
+app.get('/api/modelos/:id/campo-tipos', auth, (req, res) => {
+  const rows = db.prepare('SELECT campo,tipo,config FROM campo_tipos WHERE modelo_id=?').all(req.params.id);
+  res.json(rows.map(r => ({ campo: r.campo, tipo: r.tipo, config: JSON.parse(r.config || '{}') })));
+});
+
+app.post('/api/modelos/:id/campo-tipos', auth, role('admin','editor'), (req, res) => {
+  const { campo, tipo, config } = req.body;
+  if (!campo || !tipo) return res.status(400).json({ error: 'Campo y tipo requeridos' });
+  const existing = db.prepare('SELECT id FROM campo_tipos WHERE modelo_id=? AND campo=?').get(req.params.id, campo);
+  if (existing) {
+    db.prepare('UPDATE campo_tipos SET tipo=?, config=? WHERE id=?').run(tipo, JSON.stringify(config || {}), existing.id);
+  } else {
+    db.prepare('INSERT INTO campo_tipos (modelo_id,campo,tipo,config) VALUES (?,?,?,?)').run(req.params.id, campo, tipo, JSON.stringify(config || {}));
+  }
+  syncGlobalField(campo, { tipo });
+  res.json({ ok: true });
+});
+
+app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '3.1.0' }));
+
+app.listen(PORT, () => console.log(`Acuerdos API v3 - puerto ${PORT}`));
 //---duplicar--------------------
 app.post('/api/modelos/:id/duplicate', auth, role('admin','editor'), (req, res) => {
   const { nombre } = req.body;
@@ -533,7 +936,8 @@ app.post('/api/modelos/:id/duplicate', auth, role('admin','editor'), (req, res) 
     VALUES (?,?,?,?,?,?,?,?,?)`)
     .run(nombre, original.categoria_id, 'borrador', original.descripcion,
          original.cuerpo, '[]', req.user.id, req.user.id, req.user.id);
+  syncGlobalFieldsFromModel(r.lastInsertRowid, original.cuerpo || '');
   db.prepare('INSERT INTO actividad (modelo_id,user_id,accion,detalle) VALUES (?,?,?,?)')
-    .run(r.lastInsertRowid, req.user.id, 'duplicó modelo', `desde modelo #${original.id}`);
+    .run(r.lastInsertRowid, req.user.id, 'duplic modelo', `desde modelo #${original.id}`);
   res.json({ id: r.lastInsertRowid });
 });

@@ -217,6 +217,11 @@
     .overlay.open{display:flex}
     .modal{background:var(--surface);border-radius:var(--rxl);border:0.5px solid var(--border);padding:22px;width:400px;max-width:95vw;max-height:90vh;overflow-y:auto}
     .modal-lg{width:560px}
+    .mpanel{background:var(--surface);border-radius:var(--rxl);border:0.5px solid var(--border);padding:22px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.12)}
+    .mhead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:12px}
+    .mhead h3{font-size:15px;font-weight:600}
+    .mclose{cursor:pointer;font-size:22px;line-height:1;color:var(--text2);user-select:none}
+    .mclose:hover{color:var(--text)}
     .mtitle{font-size:15px;font-weight:600;margin-bottom:4px}
     .msub{font-size:12px;color:var(--text2);margin-bottom:14px}
     .mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
@@ -249,6 +254,23 @@
     .emenu-item:hover{background:var(--surface2)}
     .emenu-sep{border-top:0.5px solid var(--border);margin:4px 0}
     .emenu-label{padding:6px 14px 4px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
+      /* Campo de exportación: label monospace coloreado */
+  #ef-campos .fg label.fl {
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--blue);
+    letter-spacing: 0.02em;
+  }
+  /* Input de exportación con foco azul más marcado */
+  #ef-campos input:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 2px rgba(24,95,165,0.12);
+  }
+  /* Scroll sutil en el contenedor de campos */
+  #ef-campos::-webkit-scrollbar { width: 5px; }
+  #ef-campos::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
   </style>
 </head>
 <body>
@@ -331,15 +353,18 @@
           </div>
           <button class="btn btn-sm" id="btn-save" onclick="saveModel()">💾 Guardar</button>
           <button class="btn btn-sm" id="btn-styles" onclick="openStylesEditor()">⚙ Estilos</button>
+          <button class="btn btn-sm" id="btn-versions" onclick="openVersions()">🕘 Historial</button>
+          <span id="autosave-indicator" style="font-size:11px;color:var(--text3);opacity:0;transition:opacity .3s;margin-left:8px">Guardado automaticamente</span>
           <!-- export dropdown -->
           <div class="export-wrap" id="export-wrap">
             <button class="btn btn-sm" onclick="openDuplicateModal()" title="Duplicar modelo">⧉ Dupplicar</button>  
             <button class="btn btn-sm btn-success" onclick="toggleExportMenu()">⬇ Exportar .odt ▾</button>
             <div class="export-menu" id="export-menu">
               <div class="emenu-label">Plantilla LibreOffice</div>
-              <div class="emenu-item" onclick="exportOdt(null)">
-                <span>📄</span><span>Sin plantilla (estilos por defecto)</span>
-              </div>
+                    <div class="emenu-item" onclick="openExportFieldsModal(null)">
+         <span>📄</span><span>Sin plantilla (estilos por defecto)</span>
+       </div>
+
               <div class="emenu-sep"></div>
               <div id="emenu-tpls"></div>
             </div>
@@ -425,6 +450,14 @@
                 <div class="ptitle">Campos detectados</div>
                 <div id="r-fields"><span style="font-size:11px;color:var(--text3)">Sin campos</span></div>
                 <button class="btn btn-sm" style="width:100%;margin-top:5px" onclick="openFieldModal()">+ Campo</button>
+              </div>
+              <div>
+                <div class="ptitle">Biblioteca</div>
+                <div class="sbsearch" style="margin-bottom:6px">
+                  <span class="sbsearch-ic">⌕</span>
+                  <input type="text" id="field-search" placeholder="Buscar campo..." oninput="renderGlobalFields()" style="font-size:11px;padding:5px 8px"/>
+                </div>
+                <div id="r-global-fields"><span style="font-size:11px;color:var(--text3)">Cargando...</span></div>
               </div>
               <div>
                 <div class="ptitle">Etiquetas</div>
@@ -543,6 +576,8 @@
     <div class="fg"><label class="fl">Nombre del campo</label><input type="text" id="mf-name" placeholder="NUMERO_EXPEDIENTE" oninput="this.value=this.value.toUpperCase().replace(/\s/g,'_')"/></div>
     <div class="fl" style="margin-bottom:5px">Campos habituales:</div>
     <div class="ptags" id="mf-presets"></div>
+    <div class="fl" style="margin:12px 0 5px">Biblioteca reutilizable</div>
+    <div class="ptags" id="mf-global-presets"></div>
     <div class="mfoot"><button class="btn btn-sm" onclick="closeModal('m-field')">Cancelar</button><button class="btn btn-sm btn-primary" onclick="confirmField()">Insertar</button></div>
   </div>
 </div>
@@ -645,6 +680,57 @@
     </div>
   </div>
 </div>
+<div class="overlay" id="m-export-fields">
+  <div class="modal modal-lg" style="width:520px;max-height:85vh">
+    <div class="mtitle">📄 Preparar documento para exportar</div>
+    <div class="msub">Rellena los campos dinámicos que se sustituirán en el .odt generado. Los campos vacíos se mantendrán sin cambios.</div>
+ 
+    <!-- Plantilla seleccionada -->
+    <div id="ef-tpl-badge" style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r);padding:7px 12px;margin-bottom:14px;font-size:12px">
+      <span style="font-size:15px">📋</span>
+      <span id="ef-tpl-name" style="color:var(--text2)">Sin plantilla (estilos por defecto)</span>
+    </div>
+ 
+    <!-- Campos dinámicos - se rellena por JS -->
+    <div id="ef-campos" style="max-height:390px;overflow-y:auto;padding-right:4px"></div>
+ 
+    <div class="mfoot">
+      <button class="btn btn-sm" onclick="closeModal('m-export-fields')">Cancelar</button>
+      <button class="btn btn-sm" onclick="openPreview()">Vista previa</button>
+      <button class="btn btn-sm btn-success" onclick="confirmExportFields()">Generar .odt</button>
+      <button class="btn btn-sm btn-primary" onclick="doExportPdf()">Generar .pdf</button>
+    </div>
+  </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="overlay" id="preview-modal" onclick="if(event.target===this)closeModal('preview-modal')">
+  <div class="mpanel" style="max-width:700px;max-height:80vh;display:flex;flex-direction:column">
+    <div class="mhead">
+      <h3 id="preview-title">Vista previa</h3>
+      <span class="mclose" onclick="closeModal('preview-modal')">&times;</span>
+    </div>
+    <div id="preview-content" style="padding:16px;overflow:auto;font-size:13px;line-height:1.6;border-top:0.5px solid var(--border)"></div>
+    <div class="mfoot">
+      <button class="btn btn-sm" onclick="closeModal('preview-modal')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Versions Modal -->
+<div class="overlay" id="versions-modal" onclick="if(event.target===this)closeModal('versions-modal')">
+  <div class="mpanel" style="max-width:500px;max-height:70vh;display:flex;flex-direction:column">
+    <div class="mhead">
+      <h3>Historial de versiones</h3>
+      <span class="mclose" onclick="closeModal('versions-modal')">&times;</span>
+    </div>
+    <div id="versions-list" style="padding:0;overflow:auto;border-top:0.5px solid var(--border)"></div>
+    <div class="mfoot">
+      <button class="btn btn-sm" onclick="closeModal('versions-modal')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="/app.js"></script>
