@@ -12,10 +12,19 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 from odf.opendocument import OpenDocumentText, load
 from odf.style import (Style, TextProperties, ParagraphProperties,
                        PageLayout, PageLayoutProperties, MasterPage,
-                       TableCellProperties, TableColumnProperties)
-from odf.text import P, Span, LineBreak
+                       TableCellProperties, TableColumnProperties, Footer)
+from odf.text import P, Span, LineBreak, PageNumber
 from odf.table import Table, TableColumn, TableRow, TableCell
+try:
+    from odf.table import CoveredTableCell as _CoveredTableCell
+except ImportError:
+    _CoveredTableCell = None
 from odf.namespaces import STYLENS, FONS, TEXTNS
+try:
+    from odf.namespaces import TABLENS
+except ImportError:
+    TABLENS = "urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+import odf.dc
 
 FIELD_RE   = re.compile(r'\{\{[A-Z0-9_]+\}\}')
 FONT       = 'Arial'
@@ -34,7 +43,20 @@ def _apply_page_layout(doc):
     plp.setAttrNS(FONS, 'margin-right',  '3cm')
     pl.addElement(plp)
     doc.automaticstyles.addElement(pl)
+
     mp = MasterPage(name='Standard', pagelayoutname='PageLayout')
+    # Footer: centered page number
+    try:
+        footer = Footer()
+        fp = P()
+        fp.setAttrNS(TEXTNS, 'style-name', 'FooterPara')
+        pn = PageNumber()
+        pn.setAttrNS(TEXTNS, 'select-page', 'current')
+        fp.addElement(pn)
+        footer.addElement(fp)
+        mp.addElement(footer)
+    except Exception:
+        pass
     doc.masterstyles.addElement(mp)
 
 # ─── STYLE BUILDERS ───────────────────────────────────────────────────────────
@@ -169,7 +191,12 @@ def _apply_all_styles(doc):
     _text_style(doc, 'Underline',   underline=True)
     _text_style(doc, 'Strike',      strikethrough=True)
     _text_style(doc, 'CodeInline',  font='Liberation Mono', size='9pt', bg='#F0F0F0')
-    _text_style(doc, 'FieldMarker', color='#0000CC')
+    # Unfilled {{CAMPO}} placeholders: yellow highlight + red text
+    _text_style(doc, 'FieldMarker', color='#CC0000', bg='#FFFF00')
+
+    # Footer paragraph: small, centered
+    _para_style(doc, 'FooterPara', size='9pt', first_indent=None,
+                mb='0cm', mt='0cm', align='center')
 
     # Table cell styles
     _cell_style(doc, 'CellHeader', bg='#E0E0E0')
@@ -371,30 +398,70 @@ def _render_list_item(doc, li, depth=0, ordered=False, index=1, parent_counters=
 def _render_table(doc, table_node):
     rows = table_node.find_all('tr')
     if not rows: return
-    ncols = max(len(r.find_all(['th','td'])) for r in rows)
+
+    # Count columns accounting for colspan
+    ncols = 0
+    for r in rows:
+        span = sum(max(1, int(c.get('colspan', 1) or 1)) for c in r.find_all(['th', 'td']))
+        ncols = max(ncols, span)
     if ncols == 0: return
 
     table = Table()
     col_width = f'{15.0/ncols:.2f}cm'
     for _ in range(ncols):
-        tc = TableColumn()
-        tc.setAttrNS(STYLENS, 'column-width', col_width)
-        table.addElement(tc)
+        tc_col = TableColumn()
+        tc_col.setAttrNS(STYLENS, 'column-width', col_width)
+        table.addElement(tc_col)
 
-    for row_node in rows:
+    # Track cells covered by rowspan: set of (row_idx, col_idx)
+    covered = set()
+    CoveredCell = _CoveredTableCell if _CoveredTableCell else TableCell
+
+    for row_idx, row_node in enumerate(rows):
         tr = TableRow()
-        for cell in row_node.find_all(['th','td']):
+        col = 0
+        for cell in row_node.find_all(['th', 'td']):
+            # Insert covered-cell placeholders for rowspan from above rows
+            while col < ncols and (row_idx, col) in covered:
+                tr.addElement(CoveredCell())
+                col += 1
+
             is_header = cell.name == 'th'
+            colspan = max(1, int(cell.get('colspan', 1) or 1))
+            rowspan = max(1, int(cell.get('rowspan', 1) or 1))
+
             tc = TableCell(stylename='CellHeader' if is_header else 'CellNormal')
+            if colspan > 1:
+                tc.setAttrNS(TABLENS, 'number-columns-spanned', str(colspan))
+            if rowspan > 1:
+                tc.setAttrNS(TABLENS, 'number-rows-spanned', str(rowspan))
+
+            # Mark future cells as covered
+            for r_off in range(rowspan):
+                for c_off in range(colspan):
+                    if r_off > 0 or c_off > 0:
+                        covered.add((row_idx + r_off, col + c_off))
+
             p = _p('TablePara')
             if is_header:
                 sp = Span(); sp.setAttrNS(TEXTNS, 'style-name', 'Bold')
-                for c in cell.children: _render_inline(sp, c)
+                for ch in cell.children: _render_inline(sp, ch)
                 p.addElement(sp)
             else:
-                for c in cell.children: _render_inline(p, c)
+                for ch in cell.children: _render_inline(p, ch)
             tc.addElement(p)
             tr.addElement(tc)
+
+            # Add covered placeholders for colspan within this row
+            for _ in range(1, colspan):
+                tr.addElement(CoveredCell())
+            col += colspan
+
+        # Fill trailing covered cells (from rowspan in previous rows)
+        while col < ncols:
+            tr.addElement(CoveredCell())
+            col += 1
+
         table.addElement(tr)
 
     doc.text.addElement(table)
@@ -415,6 +482,7 @@ def main():
 
     title    = data.get('title', 'Acuerdo')
     markdown = data.get('markdown', '')
+    meta     = data.get('meta', {})
 
     # Markdown → HTML
     md   = MarkdownIt('commonmark').enable('table').enable('strikethrough')
@@ -433,6 +501,17 @@ def main():
         _apply_page_layout(doc)
 
     _apply_all_styles(doc)
+
+    # Metadata
+    try:
+        if meta.get('title'):
+            el = odf.dc.Title(); el.addText(meta['title']); doc.meta.addElement(el)
+        if meta.get('creator'):
+            el = odf.dc.Creator(); el.addText(meta['creator']); doc.meta.addElement(el)
+        if meta.get('subject'):
+            el = odf.dc.Subject(); el.addText(meta['subject']); doc.meta.addElement(el)
+    except Exception:
+        pass
 
     # Title
     title_p = _p('Titulo 1')

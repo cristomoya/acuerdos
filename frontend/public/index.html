@@ -332,6 +332,7 @@
       <div class="viewtoggle">
         <button class="btn btn-sm vtbtn" id="vl-btn" onclick="setView('list')">≡ Lista</button>
         <button class="btn btn-sm vtbtn btn-primary" id="vt-btn" onclick="setView('tree')">🗂 Carpetas</button>
+        <button class="btn btn-sm vtbtn" id="batch-toggle-btn" onclick="toggleBatchMode()" title="Seleccionar modelos para exportar en lote" style="flex:0 0 auto;padding:3px 7px">☑</button>
       </div>
       <div id="view-list" style="display:none" class="modlist"></div>
       <div id="view-tree" class="cattree"></div>
@@ -744,6 +745,19 @@
     <div id="versions-list" style="padding:0;overflow:auto;border-top:0.5px solid var(--border)"></div>
     <div class="mfoot">
       <button class="btn btn-sm" onclick="closeModal('versions-modal')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Batch Export Modal -->
+<div class="overlay" id="m-export-batch" onclick="if(event.target===this)closeModal('m-export-batch')">
+  <div class="modal modal-lg" style="width:480px;max-height:80vh">
+    <div class="mtitle" id="bf-title">Exportar modelos como ZIP</div>
+    <div class="msub">Rellena los campos comunes que se aplicarán a todos los documentos. Los campos en blanco no se sustituirán.</div>
+    <div id="bf-campos" style="max-height:340px;overflow-y:auto;padding-right:4px;margin-top:14px"></div>
+    <div class="mfoot">
+      <button class="btn btn-sm" onclick="closeModal('m-export-batch')">Cancelar</button>
+      <button class="btn btn-sm btn-success" onclick="confirmBatchExport()">⬇ Exportar ZIP</button>
     </div>
   </div>
 </div>

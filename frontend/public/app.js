@@ -3,6 +3,7 @@ const API = '/api';
 let token = null;
 let me = null, models = [], cats = [], tpls = [], activeId = null;
 let statusFilter = '', sideView = 'tree', catEditId = null, catColor = 'blue';
+let batchMode = false, batchSelected = new Set();
 let selStart = 0, selEnd = 0;
 let campoGlobalesCache = [];
 
@@ -275,7 +276,8 @@ async function loadModels() {
 
 function renderSidebar() {
   sideView === 'list' ? renderList() : renderTree();
-  document.getElementById('sbstats').textContent = `${models.length} modelo${models.length!==1?'s':''}`;
+  if (batchMode) _updateBatchFooter();
+  else document.getElementById('sbstats').textContent = `${models.length} modelo${models.length!==1?'s':''}`;
 }
 
 function setView(v) {
@@ -292,11 +294,22 @@ function renderList() {
   if (!models.length) { el.innerHTML='<div class="empty" style="padding:24px 10px"><p>Sin resultados</p></div>'; return; }
   el.innerHTML = models.map(m => {
     const id = Number(m.id);
+    if (batchMode) {
+      const checked = batchSelected.has(id);
+      return `<div class="mitem ${checked?'active':''}" onclick="toggleBatchSelect(${id})" style="cursor:pointer">
+        <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation();toggleBatchSelect(${id})" style="margin:0 6px 0 4px;flex-shrink:0">
+        <div class="micon" style="background:${COLORBG[m.categoria_color]||'#f0efe9'}">${escapeHtml(m.categoria_icono||'📁')}</div>
+        <div class="minfo">
+          <div class="mname">${escapeHtml(m.nombre)}</div>
+          <div class="mmeta">${escapeHtml(m.categoria_nombre||'Sin cat.')} · <span class="b b-${escapeHtml(m.estado)}">${escapeHtml(m.estado)}</span></div>
+        </div>
+      </div>`;
+    }
     return `<div class="mitem ${id===activeId?'active':''}" onclick="openModel(${id})">
       <div class="micon" style="background:${COLORBG[m.categoria_color]||'#f0efe9'}">${escapeHtml(m.categoria_icono||'📁')}</div>
       <div class="minfo">
         <div class="mname">${escapeHtml(m.nombre)}</div>
-        <div class="mmeta">${escapeHtml(m.categoria_nombre||'Sin cat.')} . <span class="b b-${escapeHtml(m.estado)}">${escapeHtml(m.estado)}</span></div>
+        <div class="mmeta">${escapeHtml(m.categoria_nombre||'Sin cat.')} · <span class="b b-${escapeHtml(m.estado)}">${escapeHtml(m.estado)}</span></div>
       </div>
     </div>`;
   }).join('');
@@ -998,6 +1011,116 @@ async function _doExport(plantillaId, camposObj) {
 
 function exportOdt(plantillaId) {
   openExportFieldsModal(plantillaId);
+}
+
+// "?"?"? BATCH EXPORT "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
+
+function toggleBatchMode() {
+  batchMode = !batchMode;
+  batchSelected.clear();
+  const btn = document.getElementById('batch-toggle-btn');
+  if (btn) {
+    btn.className = 'btn btn-sm' + (batchMode ? ' btn-primary' : '');
+    btn.title = batchMode ? 'Salir del modo selección' : 'Seleccionar modelos para exportar en lote';
+  }
+  if (batchMode) setView('list');
+  else renderSidebar();
+  _updateBatchFooter();
+}
+
+function toggleBatchSelect(id) {
+  id = Number(id);
+  if (batchSelected.has(id)) batchSelected.delete(id);
+  else batchSelected.add(id);
+  renderSidebar();
+}
+
+function _updateBatchFooter() {
+  const foot = document.getElementById('sbstats');
+  if (!foot) return;
+  if (batchMode) {
+    const n = batchSelected.size;
+    foot.innerHTML = n
+      ? `<button class="btn btn-sm btn-success" style="width:100%;margin-top:4px" onclick="openBatchExportModal()">⬇ Exportar ${n} seleccionado${n!==1?'s':''}</button>`
+      : `<span style="color:var(--text3);font-size:12px">Selecciona modelos de la lista</span>`;
+  } else {
+    foot.textContent = `${models.length} modelo${models.length!==1?'s':''}`;
+  }
+}
+
+async function openBatchExportModal() {
+  if (!batchSelected.size) { toast('Selecciona al menos un modelo'); return; }
+  const ids = [...batchSelected];
+  // Collect union of all fields from selected models
+  const fieldSet = new Set();
+  for (const id of ids) {
+    const m = models.find(x => Number(x.id) === id);
+    if (m && m.cuerpo) {
+      (m.cuerpo.match(/\{\{[A-Z][A-Z0-9_]*\}\}/g) || []).forEach(f => fieldSet.add(f.slice(2, -2)));
+    }
+  }
+  // If cuerpos not in list, fetch from server for first model
+  if (!fieldSet.size) {
+    for (const id of ids.slice(0, 3)) {
+      try {
+        const data = await api('GET', `/modelos/${id}`);
+        if (data?.cuerpo) {
+          (data.cuerpo.match(/\{\{[A-Z][A-Z0-9_]*\}\}/g) || []).forEach(f => fieldSet.add(f.slice(2, -2)));
+        }
+      } catch {}
+    }
+  }
+
+  const container = document.getElementById('bf-campos');
+  const campos = fieldSet.size ? [...fieldSet].sort() : PRESETS.slice(0, 6);
+  container.dataset.campos = JSON.stringify(campos);
+  container.innerHTML = campos.map(campo => {
+    const tipo = _fieldTypeFor ? _fieldTypeFor(campo) : '';
+    return `<div class="fg" style="margin-bottom:8px">
+      <label class="fl" style="font-size:11px;font-weight:600;color:var(--blue);font-family:monospace">{{${campo}}}</label>
+      <input type="text" class="bf-field" data-campo="${campo.replace(/"/g,'&quot;')}" placeholder="${_expPlaceholder(campo)}" style="font-size:13px;padding:5px 8px;border:0.5px solid var(--border);border-radius:6px;width:100%;box-sizing:border-box">
+    </div>`;
+  }).join('');
+
+  document.getElementById('bf-title').textContent = `Exportar ${ids.length} modelo${ids.length!==1?'s':''} como ZIP`;
+  openModal('m-export-batch');
+  setTimeout(() => container.querySelector('input')?.focus(), 80);
+}
+
+async function confirmBatchExport() {
+  const container = document.getElementById('bf-campos');
+  const campos = JSON.parse(container.dataset.campos || '[]');
+  const camposObj = {};
+  campos.forEach(campo => {
+    const input = document.querySelector(`.bf-field[data-campo="${campo}"]`);
+    if (input && input.value.trim()) camposObj[campo] = input.value.trim();
+  });
+
+  closeModal('m-export-batch');
+  toast(`Generando ZIP con ${batchSelected.size} modelo(s)…`, 8000);
+
+  const ids = [...batchSelected];
+  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  try {
+    const res = await fetch('/api/export/batch-odt', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ids, campos: camposObj })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Error desconocido' }));
+      toast('Error: ' + err.error); return;
+    }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `modelos_${new Date().toISOString().slice(0,10)}.zip`;
+    a.click(); URL.revokeObjectURL(a.href);
+    toast(`ZIP con ${ids.length} modelo(s) descargado ✓`);
+    toggleBatchMode();
+  } catch (e) {
+    toast('Error exportando: ' + e.message);
+  }
 }
 
 // "?"?"? MARKDOWN EDITOR "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
