@@ -310,6 +310,7 @@
     <div class="tab active" id="tab-e-btn" onclick="switchTab('editor')">Editor</div>
     <div class="tab hidden" id="tab-c-btn" onclick="switchTab('cats')">Categorías</div>
     <div class="tab hidden" id="tab-t-btn" onclick="switchTab('tpls')">Plantillas</div>
+    <div class="tab hidden" id="tab-campos-btn" onclick="switchTab('campos')">📊 Campos</div>
     <div class="tab hidden" id="tab-u-btn" onclick="switchTab('users')">Usuarios</div>
   </div>
 
@@ -483,6 +484,29 @@
                 </div>
               </div>
             </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ CAMPOS TAB ══ -->
+  <div class="abody" id="tab-campos" style="display:none">
+    <div class="tabpanel">
+      <div class="card">
+        <div class="chead">📊 Análisis de campos dinámicos
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <span id="campos-stats" style="font-size:11px;color:var(--text3)"></span>
+            <button class="btn btn-sm btn-primary" onclick="loadAnalisisCampos()">↻ Actualizar</button>
+          </div>
+        </div>
+        <div class="cbody">
+          <p style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6">
+            Lista de todos los <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">{{CAMPOS}}</code> usados en los documentos, ordenados por frecuencia. Usa esta vista para detectar duplicados o nombres inconsistentes y estandarizarlos.
+          </p>
+          <div style="margin-bottom:12px">
+            <input type="text" id="campos-search" placeholder="Buscar campo o nombre…" oninput="filterAnalisisCampos()" style="max-width:320px;font-size:12px"/>
+          </div>
+          <div id="campos-tabla"><p style="color:var(--text3);font-size:13px">Cargando…</p></div>
         </div>
       </div>
     </div>

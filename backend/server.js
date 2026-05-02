@@ -923,6 +923,44 @@ app.post('/api/modelos/:id/campo-tipos', auth, role('admin','editor'), (req, res
   res.json({ ok: true });
 });
 
+// Análisis de campos: frecuencia, tipos y documentos que los usan
+app.get('/api/analisis-campos', auth, role('admin', 'editor'), (req, res) => {
+  const CAMPO_RE = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
+  const modelos = db.prepare(`
+    SELECT m.id, m.nombre, m.estado, m.cuerpo, c.nombre as cat_nombre
+    FROM modelos m
+    LEFT JOIN categorias c ON c.id = m.categoria_id
+    WHERE m.cuerpo IS NOT NULL AND m.cuerpo != ''
+  `).all();
+
+  const fieldMap = {};
+  modelos.forEach(m => {
+    const vistos = new Set();
+    CAMPO_RE.lastIndex = 0;
+    let match;
+    while ((match = CAMPO_RE.exec(m.cuerpo)) !== null) vistos.add(match[1]);
+    vistos.forEach(campo => {
+      if (!fieldMap[campo]) fieldMap[campo] = { campo, count: 0, modelos: [] };
+      fieldMap[campo].count++;
+      fieldMap[campo].modelos.push({ id: m.id, nombre: m.nombre, estado: m.estado, categoria: m.cat_nombre || 'Sin categoría' });
+    });
+  });
+
+  const catalog = db.prepare('SELECT clave, nombre, tipo FROM campo_catalogo').all();
+  const catalogMap = Object.fromEntries(catalog.map(c => [c.clave, c]));
+
+  const resultado = Object.values(fieldMap)
+    .sort((a, b) => b.count - a.count)
+    .map(f => ({
+      ...f,
+      tipo: catalogMap[f.campo]?.tipo || null,
+      nombre_legible: catalogMap[f.campo]?.nombre || humanizeFieldName(f.campo),
+      en_catalogo: !!catalogMap[f.campo],
+    }));
+
+  res.json({ total_campos: resultado.length, total_modelos: modelos.length, campos: resultado });
+});
+
 app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '3.1.0' }));
 
 app.listen(PORT, () => console.log(`Acuerdos API v3 - puerto ${PORT}`));

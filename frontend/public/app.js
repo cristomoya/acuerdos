@@ -137,6 +137,9 @@ async function initApp() {
   const ini = me.nombre.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('top-av').textContent = ini;
   document.getElementById('top-name').textContent = me.nombre;
+  if (me.rol === 'admin' || me.rol === 'editor') {
+    document.getElementById('tab-campos-btn').classList.remove('hidden');
+  }
   if (me.rol === 'admin') {
     ['tab-c-btn','tab-t-btn','tab-u-btn'].forEach(id => document.getElementById(id).classList.remove('hidden'));
   }
@@ -1496,13 +1499,85 @@ async function saveStyleConfig() {
 
 // "?"?"? TABS "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
 function switchTab(t) {
-  const map = {editor:'tab-editor', cats:'tab-cats', tpls:'tab-tpls', users:'tab-users'};
-  const btns = {editor:'tab-e-btn', cats:'tab-c-btn', tpls:'tab-t-btn', users:'tab-u-btn'};
+  const map = {editor:'tab-editor', cats:'tab-cats', tpls:'tab-tpls', campos:'tab-campos', users:'tab-users'};
+  const btns = {editor:'tab-e-btn', cats:'tab-c-btn', tpls:'tab-t-btn', campos:'tab-campos-btn', users:'tab-u-btn'};
   Object.entries(map).forEach(([k,id]) => document.getElementById(id).style.display = k===t ? 'flex' : 'none');
   Object.entries(btns).forEach(([k,id]) => { const el=document.getElementById(id); if(el) el.classList.toggle('active',k===t); });
-  if (t==='cats')  renderCatsTab();
-  if (t==='tpls')  renderTplsTab();
-  if (t==='users') renderUsersTab();
+  if (t==='cats')   renderCatsTab();
+  if (t==='tpls')   renderTplsTab();
+  if (t==='users')  renderUsersTab();
+  if (t==='campos') loadAnalisisCampos();
+}
+
+let _analisisCamposData = [];
+
+async function loadAnalisisCampos() {
+  document.getElementById('campos-tabla').innerHTML = '<p style="color:var(--text3);font-size:13px">Analizando documentos…</p>';
+  const data = await api('GET', '/analisis-campos');
+  if (!data) return;
+  _analisisCamposData = data.campos || [];
+  document.getElementById('campos-stats').textContent =
+    `${data.total_campos} campos únicos · ${data.total_modelos} documentos analizados`;
+  renderAnalisisCampos(_analisisCamposData);
+}
+
+function filterAnalisisCampos() {
+  const q = (document.getElementById('campos-search')?.value || '').trim().toLowerCase();
+  const filtered = q
+    ? _analisisCamposData.filter(f =>
+        f.campo.toLowerCase().includes(q) || f.nombre_legible.toLowerCase().includes(q))
+    : _analisisCamposData;
+  renderAnalisisCampos(filtered);
+}
+
+function renderAnalisisCampos(campos) {
+  const el = document.getElementById('campos-tabla');
+  if (!campos.length) {
+    el.innerHTML = '<p style="color:var(--text3);font-size:13px">Sin resultados.</p>';
+    return;
+  }
+  const tipoColor = { fecha:'var(--amber)', importe:'var(--teal)', numero:'var(--purple)',
+    lista:'var(--blue)', booleano:'var(--red)', texto:'var(--text3)' };
+  const tipoBg = { fecha:'var(--amber-bg)', importe:'var(--teal-bg)', numero:'var(--purple-bg)',
+    lista:'var(--blue-bg)', booleano:'var(--red-bg)', texto:'var(--surface2)' };
+  el.innerHTML = `
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="background:var(--surface2);border-bottom:0.5px solid var(--border2)">
+          <th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap">Campo</th>
+          <th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:600;color:var(--text2)">Nombre legible</th>
+          <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:600;color:var(--text2)">Tipo</th>
+          <th style="text-align:center;padding:8px 12px;font-size:11px;font-weight:600;color:var(--text2)">Docs</th>
+          <th style="text-align:left;padding:8px 12px;font-size:11px;font-weight:600;color:var(--text2)">Documentos que lo usan</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${campos.map((f, i) => {
+          const tc = tipoColor[f.tipo] || 'var(--text3)';
+          const tb = tipoBg[f.tipo] || 'var(--surface2)';
+          const docs = f.modelos.map(m =>
+            `<span onclick="switchTab('editor');openModel(${m.id})"
+              style="font-size:10px;padding:2px 7px;border-radius:99px;background:var(--surface2);border:0.5px solid var(--border);cursor:pointer;color:var(--text2);white-space:nowrap;display:inline-block;margin:1px"
+              title="${escapeHtml(m.categoria)}">${escapeHtml(m.nombre)}</span>`
+          ).join('');
+          return `<tr style="border-bottom:0.5px solid var(--border);${i%2===1?'background:var(--surface2)':''}">
+            <td style="padding:7px 12px;font-family:monospace;font-size:11px;color:var(--blue);white-space:nowrap">
+              ${f.en_catalogo ? '' : '<span title="No está en el catálogo" style="color:var(--amber);margin-right:4px">⚠</span>'}{{${escapeHtml(f.campo)}}}
+            </td>
+            <td style="padding:7px 12px;color:var(--text2);font-size:12px">${escapeHtml(f.nombre_legible)}</td>
+            <td style="padding:7px 12px;text-align:center">
+              ${f.tipo
+                ? `<span style="font-size:10px;padding:2px 7px;border-radius:99px;background:${tb};color:${tc};font-weight:500">${f.tipo}</span>`
+                : `<span style="font-size:10px;color:var(--text3)">—</span>`}
+            </td>
+            <td style="padding:7px 12px;text-align:center;font-weight:700;font-size:13px;color:${f.count >= 3 ? 'var(--green)' : f.count === 1 ? 'var(--text3)' : 'var(--text)'}">${f.count}</td>
+            <td style="padding:7px 12px">${docs}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>`;
 }
 
 function openDuplicateModal() {
