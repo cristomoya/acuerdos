@@ -845,7 +845,7 @@ function _expPlaceholder(campo) {
     FECHA_PUBLICACION: 'ej. 20 de enero de 2025',
     NUMERO_DECRETO: 'ej. 45/2025',
   };
-  return map[campo] || campDeletetoLowerCase().replace(/_/g, ' ');
+  return map[campo] || campo.toLowerCase().replace(/_/g, ' ');
 }
 
 // Al escribir en el campo clave: autorellenar el resto si hay datos guardados
@@ -987,9 +987,16 @@ function exportOdt(plantillaId) {
 
 // "?"?"? MARKDOWN EDITOR "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
 function updatePreview() {
-  const md = document.getElementById('e-body').value;
-  document.getElementById('e-preview').innerHTML = mdToHtmlPreview(md);
   detectFields();
+}
+
+function openQuickPreview() {
+  if (!activeId) return;
+  const md = document.getElementById('e-body').value;
+  const nombre = document.getElementById('e-name')?.value || '';
+  document.getElementById('preview-title').textContent = 'Vista previa: ' + nombre;
+  document.getElementById('preview-content').innerHTML = mdToHtmlPreview(md);
+  openModal('preview-modal');
 }
 
 function saveSel() {
@@ -1490,7 +1497,7 @@ function openDuplicateModal() {
   if (!activeId) return;
   const modelo = models.find(m => m.id === activeId);
   const input = document.getElementById('dup-nombre');
-  input.value = modelo ? `Copia de ${modelDeletenombre}` : '';
+  input.value = modelo ? `Copia de ${modelo.nombre}` : '';
   document.getElementById('dup-err').style.display = 'none';
   openModal('m-duplicate');
   setTimeout(() => { input.select(); }, 100);

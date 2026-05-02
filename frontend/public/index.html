@@ -354,6 +354,7 @@
           <button class="btn btn-sm" id="btn-save" onclick="saveModel()">💾 Guardar</button>
           <button class="btn btn-sm" id="btn-styles" onclick="openStylesEditor()">⚙ Estilos</button>
           <button class="btn btn-sm" id="btn-versions" onclick="openVersions()">🕘 Historial</button>
+          <button class="btn btn-sm" onclick="openQuickPreview()">👁 Vista previa</button>
           <span id="autosave-indicator" style="font-size:11px;color:var(--text3);opacity:0;transition:opacity .3s;margin-left:8px">Guardado automaticamente</span>
           <!-- export dropdown -->
           <div class="export-wrap" id="export-wrap">
@@ -416,7 +417,6 @@
               <div class="mdtsep"></div> 
                 <button class="mdt" onclick="triggerPasteFromWord()" title="Pegar desde Word/Writer">📋 Pegar Word</button>
               <div class="mdtsep"></div>
-              <span style="font-size:10px;color:var(--text3);margin-left:2px">Vista previa en tiempo real →</span>
             </div>
             <textarea class="md-textarea" id="e-body" placeholder="# Título del acuerdo&#10;&#10;Escriba aquí el cuerpo usando Markdown.&#10;Use {{CAMPO}} para campos dinámicos."
               oninput="updatePreview()" onkeydown="handleTab(event)" onmouseup="saveSel()" onkeyup="saveSel()"></textarea>
@@ -439,13 +439,7 @@
   </div>
 </div>
 
-   <!-- preview + right panel -->
-          <div style="display:flex;flex:1;overflow:hidden">
-            <div class="md-preview">
-              <div class="preview-label">Vista previa</div>
-              <div class="md-preview-body" id="e-preview"></div>
-            </div>
-            <div class="rpanel">
+          <div class="rpanel">
               <div>
                 <div class="ptitle">Campos detectados</div>
                 <div id="r-fields"><span style="font-size:11px;color:var(--text3)">Sin campos</span></div>
@@ -489,7 +483,6 @@
                 </div>
               </div>
             </div>
-          </div>
         </div>
       </div>
     </div>
