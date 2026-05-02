@@ -290,7 +290,7 @@ function renderList() {
   el.innerHTML = models.map(m => {
     const id = Number(m.id);
     return `<div class="mitem ${id===activeId?'active':''}" onclick="openModel(${id})">
-      <div class="micon" style="background:${COLORBG[m.categoria_color]||'#f0efe9'}">${escapeHtml(m.categoria_icono||'Y""')}</div>
+      <div class="micon" style="background:${COLORBG[m.categoria_color]||'#f0efe9'}">${escapeHtml(m.categoria_icono||'📁')}</div>
       <div class="minfo">
         <div class="mname">${escapeHtml(m.nombre)}</div>
         <div class="mmeta">${escapeHtml(m.categoria_nombre||'Sin cat.')} . <span class="b b-${escapeHtml(m.estado)}">${escapeHtml(m.estado)}</span></div>
@@ -361,7 +361,7 @@ function renderTree() {
   if (nocat.length) {
     html += `<div class="catrow">
       <div class="cathdr" onclick="toggleCat(this,0)">
-        <span class="catico">Y""</span><span class="catname">Sin categoria</span>
+        <span class="catico">📁</span><span class="catname">Sin categoria</span>
         <span class="catcnt">${nocat.length}</span>${arrow}
       </div>
       <div class="catkids" id="ck-0">${nocat.map(m=>{ const mid=Number(m.id); return `<div class="catmod ${mid===activeId?'active':''}" onclick="openModel(${mid})">${escapeHtml(m.nombre)}</div>`; }).join('')}</div>
@@ -459,7 +459,7 @@ async function saveModel() {
     cuerpo:      document.getElementById('e-body').value,
     etiquetas:   tags
   });
-  toast('Guardado o"');
+  toast('Guardado ✓');
   await loadGlobalFields();
   await loadModels();
   await openModel(activeId);
@@ -788,14 +788,14 @@ function _renderExportForm(campos, valores) {
 
   if (recientes.length) {
     html += `<div style="margin-bottom:14px">
-      <label class="fl" style="margin-bottom:4px;display:block">Open Cargar expediente guardado</label>
+      <label class="fl" style="margin-bottom:4px;display:block">📂 Cargar expediente guardado</label>
       <div style="display:flex;gap:6px">
         <select id="ef-recientes" style="flex:1;font-size:12px">
           <option value="">Seleccionar expediente</option>
           ${recientes.map(n => `<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('')}
         </select>
         <button class="btn btn-sm btn-primary" onclick="_onExpCargar()">Cargar</button>
-        <button class="btn btn-sm btn-danger" onclick="_onExpBorrar()" title="Borrar seleccionado">Y-'</button>
+        <button class="btn btn-sm btn-danger" onclick="_onExpBorrar()" title="Borrar seleccionado">🗑</button>
       </div>
     </div>
     <div style="height:0.5px;background:var(--border);margin-bottom:14px"></div>`;
@@ -830,6 +830,18 @@ function _renderExportForm(campos, valores) {
       input.addEventListener('input', () => _onNumExpInput(input.value));
     }
   });
+
+  if (clave && recientes.length) {
+    const claveInput = document.querySelector(`.ex-field[data-campo="${clave}"]`);
+    if (claveInput) {
+      const dl = document.createElement('datalist');
+      dl.id = 'ef-exp-datalist';
+      dl.innerHTML = recientes.map(n => `<option value="${n.replace(/"/g,'&quot;')}"></option>`).join('');
+      container.appendChild(dl);
+      claveInput.setAttribute('list', 'ef-exp-datalist');
+      claveInput.placeholder = 'Escribe o elige del historial…';
+    }
+  }
 }
 
 function _expPlaceholder(campo) {
@@ -897,7 +909,7 @@ async function _onExpCargar() {
   });
 
   sel.value = '';
-  toast(`Expediente "${numExp}" cargado o"`);
+  toast(`Expediente "${numExp}" cargado ✓`);
 }
 
 // Boton Y-' del desplegable de recientes
@@ -977,7 +989,7 @@ async function _doExport(plantillaId, camposObj) {
   a.href = URL.createObjectURL(blob);
   a.download = (document.getElementById('e-name').value||'modelo').replace(/[/\\?%*:|"<>]/g,'_') + '.odt';
   a.click(); URL.revokeObjectURL(a.href);
-  toast('Exportado a .odt o"');
+  toast('Exportado a .odt ✓');
   setTimeout(() => openModel(activeId), 800);
 }
 
@@ -1163,7 +1175,7 @@ End Sub`;
 
 function copyMacro() {
   navigator.clipboard.writeText(document.getElementById('macro-code').textContent)
-    .then(() => toast('Macro copiada al portapapeles o"'))
+    .then(() => toast('Macro copiada al portapapeles ✓'))
     .catch(() => toast('No se pudo copiar'));
 }
 
@@ -1257,7 +1269,7 @@ function openCatModal(id, parentId) {
     if (psel) psel.value = c.parent_id || '';
   } else {
     ['mc-nombre','mc-icono','mc-desc'].forEach(i=>document.getElementById(i).value='');
-    document.getElementById('mc-icono').value = 'Y""';
+    document.getElementById('mc-icono').value = '📁';
     document.getElementById('mc-orden').value = '0';
     if (psel) psel.value = parentId || '';
   }
@@ -1277,13 +1289,13 @@ async function saveCat() {
   const parent_id = psel ? (psel.value ? parseInt(psel.value) : null) : catParentId;
   const body = {
     nombre, descripcion:document.getElementById('mc-desc').value,
-    icono:document.getElementById('mc-icono').value||'Y""',
+    icono:document.getElementById('mc-icono').value||'📁',
     color:catColor, orden:parseInt(document.getElementById('mc-orden').value)||0, activa:1,
     parent_id
   };
   const res = catEditId ? await api('PUT',`/categorias/${catEditId}`,body) : await api('POST','/categorias',body);
   if (res?.error) { const e=document.getElementById('mc-err'); e.textContent=res.error; e.style.display='block'; return; }
-  closeModal('m-cat'); toast(catEditId?'Categoria actualizada o"':'Categoria creada o"');
+  closeModal('m-cat'); toast(catEditId?'Categoria actualizada ✓':'Categoria creada ✓');
   await renderCatsTab(); await loadCats(); await loadModels();
 }
 
@@ -1359,13 +1371,13 @@ async function uploadTpl() {
   }).then(r=>r.json()).catch(()=>({error:'Error de red'}));
   if (res.error) { const e=document.getElementById('mt-err'); e.textContent=res.error; e.style.display='block'; return; }
   tplFileSelected = null;
-  closeModal('m-tpl'); toast('Plantilla subida o"');
+  closeModal('m-tpl'); toast('Plantilla subida ✓');
   await renderTplsTab();
 }
 
 async function setDefaultTpl(id) {
   await api('PUT', `/plantillas/${id}/defecto`, {});
-  toast('Plantilla predeterminada o"'); await renderTplsTab();
+  toast('Plantilla predeterminada ✓'); await renderTplsTab();
 }
 
 async function deleteTpl(id) {
@@ -1396,7 +1408,7 @@ async function changeRole(id, rol) {
   const users = await api('GET', '/users');
   const u = users.find(x=>x.id===id); if(!u) return;
   await api('PUT', `/users/${id}`, {nombre:u.nombre, rol, activo:u.activo});
-  toast('Rol actualizado o"');
+  toast('Rol actualizado ✓');
 }
 
 function openUserModal() {
@@ -1412,7 +1424,7 @@ async function createUser() {
     rol:document.getElementById('mu-rol').value
   });
   if (res?.error) { const e=document.getElementById('mu-err'); e.textContent=res.error; e.style.display='block'; return; }
-  closeModal('m-user'); toast('Usuario creado o"'); renderUsersTab();
+  closeModal('m-user'); toast('Usuario creado ✓'); renderUsersTab();
 }
 
 // "?"?"? STYLE EDITOR "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
@@ -1478,7 +1490,7 @@ async function saveStyleConfig() {
   document.getElementById('btn-save-styles').disabled = true;
   const res = await api('POST', `/modelos/${activeId}/estilo-config`, { config });
   if (res?.error) { toast('Error al guardar: ' + res.error); }
-  else { toast('Configuracion de estilos guardada o"'); closeModal('m-styles'); }
+  else { toast('Configuracion de estilos guardada ✓'); closeModal('m-styles'); }
   document.getElementById('btn-save-styles').disabled = false;
 }
 
@@ -1519,7 +1531,7 @@ async function confirmDuplicate() {
     return;
   }
   closeModal('m-duplicate');
-  toast('Modelo duplicado o"');
+  toast('Modelo duplicado ✓');
   await loadModels();
   await openModel(res.id);
 }
@@ -1538,7 +1550,7 @@ function confirmPasteWord() {
   _insertMarkdown(md);
   div.innerHTML = '';
   closeModal('m-paste-word');
-  toast('Texto pegado o"');
+  toast('Texto pegado ✓');
 }
 
 function _insertMarkdown(md) {
@@ -1626,7 +1638,7 @@ document.addEventListener('paste', function(e) {
   e.preventDefault();
   const md = _htmlToMarkdown(html).replace(/\n{3,}/g, '\n\n');
   _insertMarkdown(md);
-  toast('Texto convertido a Markdown o"');
+  toast('Texto convertido a Markdown ✓');
 });
 
 // "?"?"? BOOT "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
