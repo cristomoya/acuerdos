@@ -237,7 +237,7 @@ function renderGlobalFields() {
   }
 
   el.innerHTML = items.map(f => `
-    <div class="fchip" onclick="insertFieldInEditor(${JSON.stringify(f.clave)})" title="${escapeHtml(f.descripcion || '')}">
+    <div class="fchip" onclick="insertFieldInEditor('${f.clave}')" title="${escapeHtml(f.descripcion || '')}">
       <span class="fchipname">${escapeHtml(f.clave)}</span>
       <span class="fchiphint">${escapeHtml(f.tipo || 'texto')}</span>
     </div>`).join('');
@@ -251,7 +251,7 @@ function renderFieldModalPresets() {
     return;
   }
   el.innerHTML = campoGlobalesCache.slice(0, 24).map(f =>
-    `<span class="ptag" onclick="document.getElementById('mf-name').value=${JSON.stringify(f.clave)}" title="${escapeHtml(f.nombre || '')}">${escapeHtml(f.clave)}</span>`
+    `<span class="ptag" onclick="document.getElementById('mf-name').value='${f.clave}'" title="${escapeHtml(f.nombre || '')}">${escapeHtml(f.clave)}</span>`
   ).join('');
 }
 
@@ -1086,7 +1086,7 @@ function detectFields() {
   const el = document.getElementById('r-fields');
   if (!matches.length) { el.innerHTML='<span style="font-size:11px;color:var(--text3)">Sin campos</span>'; return; }
   el.innerHTML = matches.map(f => `
-    <div class="fchip" onclick="insertFieldInEditor(${JSON.stringify(f.slice(2,-2))})">
+    <div class="fchip" onclick="insertFieldInEditor('${f.slice(2,-2)}')">
       <span class="fchipname">${escapeHtml(f)}</span>
       <span class="fchiphint">insertar</span>
     </div>`).join('');
@@ -1118,7 +1118,7 @@ function openFieldModal() {
   saveSel();
   document.getElementById('mf-name').value = '';
   document.getElementById('mf-presets').innerHTML = PRESETS.map(p =>
-    `<span class="ptag" onclick="document.getElementById('mf-name').value=${JSON.stringify(p)}">${escapeHtml(p)}</span>`
+    `<span class="ptag" onclick="document.getElementById('mf-name').value='${p}'">${escapeHtml(p)}</span>`
   ).join('');
   renderFieldModalPresets();
   openModal('m-field');
