@@ -4,34 +4,18 @@ export_odt.py — Markdown → HTML → ODT
 Estilos fijos: Arial, encabezados 12pt negrita, cuerpo 10pt,
 sangría primera línea 1.2cm, tablas con bordes, citas Book Antiqua 9pt itálica fondo azul claro.
 """
-import base64, io, sys, json, re, os
 
-try:
-    from odf.draw import Frame, Image as OdfImage
-    from odf.namespaces import DRAWNS, XLINKNS, SVGNS
-    _HAS_DRAW = True
-except ImportError:
-    _HAS_DRAW = False
-
+import sys, json, re, os
 from markdown_it import MarkdownIt
 from bs4 import BeautifulSoup, NavigableString, Tag
 
 from odf.opendocument import OpenDocumentText, load
 from odf.style import (Style, TextProperties, ParagraphProperties,
                        PageLayout, PageLayoutProperties, MasterPage,
-                       TableCellProperties, TableColumnProperties, Footer)
-from odf.text import P, Span, LineBreak, PageNumber
+                       TableCellProperties, TableColumnProperties)
+from odf.text import P, Span, LineBreak
 from odf.table import Table, TableColumn, TableRow, TableCell
-try:
-    from odf.table import CoveredTableCell as _CoveredTableCell
-except ImportError:
-    _CoveredTableCell = None
 from odf.namespaces import STYLENS, FONS, TEXTNS
-try:
-    from odf.namespaces import TABLENS
-except ImportError:
-    TABLENS = "urn:oasis:names:tc:opendocument:xmlns:table:1.0"
-import odf.dc
 
 FIELD_RE   = re.compile(r'\{\{[A-Z0-9_]+\}\}')
 FONT       = 'Arial'
@@ -50,19 +34,7 @@ def _apply_page_layout(doc):
     plp.setAttrNS(FONS, 'margin-right',  '3cm')
     pl.addElement(plp)
     doc.automaticstyles.addElement(pl)
-
     mp = MasterPage(name='Standard', pagelayoutname='PageLayout')
-    try:
-        footer = Footer()
-        fp = P()
-        fp.setAttrNS(TEXTNS, 'style-name', 'FooterPara')
-        pn = PageNumber()
-        pn.setAttrNS(TEXTNS, 'select-page', 'current')
-        fp.addElement(pn)
-        footer.addElement(fp)
-        mp.addElement(footer)
-    except Exception:
-        pass
     doc.masterstyles.addElement(mp)
 
 # ─── STYLE BUILDERS ───────────────────────────────────────────────────────────
@@ -81,14 +53,19 @@ def _para_style(doc, name, size='10pt', bold=False, italic=False,
 
     if first_indent:
         pp.setAttrNS(FONS, 'text-indent', first_indent)
+
     if ml:
         pp.setAttrNS(FONS, 'margin-left', ml)
+
     if mr:
         pp.setAttrNS(FONS, 'margin-right', mr)
+
     if bg:
         pp.setAttrNS(FONS, 'background-color', bg)
+
     if border_left:
         pp.setAttrNS(FONS, 'border-left', border_left)
+
     if padding_left:
         pp.setAttrNS(FONS, 'padding-left', padding_left)
 
@@ -97,6 +74,7 @@ def _para_style(doc, name, size='10pt', bold=False, italic=False,
     tp = TextProperties()
     tp.setAttrNS(FONS, 'font-size', size)
     tp.setAttrNS(FONS, 'font-family', font or FONT)
+
     if bold:
         tp.setAttrNS(FONS, 'font-weight', 'bold')
     if italic:
@@ -139,43 +117,61 @@ def _cell_style(doc, name, bg=None):
     if bg:
         tcp.setAttrNS(FONS, 'background-color', bg)
     s.addElement(tcp)
-    doc.automaticstyles.addElement(s)
+    doc.automaticstyles.addElement(s)  # ← aquí el cambio
 
 
 def _apply_all_styles(doc):
-    _para_style(doc, 'Titulo 1', size='10pt', bold=True, align='justify',
+    # Headings: 12pt Arial bold, no first-line indent, centered for H1
+    _para_style(doc, 'Titulo 1', size='12pt', bold=True, align='justify',
                 mb='0.4cm', mt='0.5cm', lineheight='130%', first_indent='1.2cm')
     for i in range(2, 7):
-        _para_style(doc, f'Heading{i}', size='10pt', bold=True,
+        _para_style(doc, f'Heading{i}', size='12pt', bold=True,
                     align='justify', mb='0.25cm', mt='0.35cm',
                     lineheight='130%', first_indent='1.2cm')
 
+    # Body: 10pt Arial, justified, 1.2cm first-line indent
     _para_style(doc, 'BodyText',  size='10pt', first_indent='1.2cm', mb='0.21cm', mt='0cm')
+
+    # List: 10pt Arial, no indent
     _para_style(doc, 'ListItem',  size='10pt', first_indent='1.2cm', mb='0.1cm')
+
+    # Blockquote: Book Antiqua 9pt italic, light blue bg, no indent
     _para_style(doc, 'Blockquote',
-        size='10pt', italic=True, font=FONT_QUOTE,
-        first_indent=None, mb='0.25cm', mt='0.15cm',
-        bg='#F2F2F2', border_left='0.06cm solid #C0C0C0',
-        padding_left='0.3cm', ml='1cm', mr='1cm')
+        size='10pt',
+        italic=True,
+        font=FONT_QUOTE,
+        first_indent=None,
+        mb='0.25cm',
+        mt='0.15cm',
+        bg='#F2F2F2',
+        border_left='0.06cm solid #C0C0C0',
+        padding_left='0.3cm',
+        ml='1cm',
+        mr='1cm'
+    )
+
+    # Table paragraph: 10pt Arial, no indent
     _para_style(doc, 'TablePara', size='10pt', first_indent=None,
                 mb='0cm', mt='0cm', align='start')
+
+    # Code: monospace 9pt, no indent
     _para_style(doc, 'CodePara', size='9pt', first_indent=None,
                 font='Liberation Mono', mb='0cm', mt='0cm', align='start')
+
+    # HR
     _para_style(doc, 'HRPara', size='10pt', first_indent=None,
                 mb='0.2cm', mt='0.2cm', align='center')
-    _para_style(doc, 'DiagramPara', size='10pt', first_indent=None,
-                mb='0.3cm', mt='0.3cm', align='center')
-    _para_style(doc, 'FooterPara', size='9pt', first_indent=None,
-                mb='0cm', mt='0cm', align='center')
 
+    # Inline text styles
     _text_style(doc, 'Bold',        bold=True)
     _text_style(doc, 'Italic',      italic=True)
     _text_style(doc, 'BoldItalic',  bold=True, italic=True)
     _text_style(doc, 'Underline',   underline=True)
     _text_style(doc, 'Strike',      strikethrough=True)
     _text_style(doc, 'CodeInline',  font='Liberation Mono', size='9pt', bg='#F0F0F0')
-    _text_style(doc, 'FieldMarker', color='#CC0000', bg='#FFFF00')
+    _text_style(doc, 'FieldMarker', color='#0000CC')
 
+    # Table cell styles
     _cell_style(doc, 'CellHeader', bg='#E0E0E0')
     _cell_style(doc, 'CellNormal')
 
@@ -263,16 +259,9 @@ def _render_block(doc, node):
         doc.text.addElement(p)
 
     elif tag == 'p':
-        # Detectar placeholder de diagrama dentro de <p>
-        text_content = node.get_text().strip()
-        if re.match(r'^%%ODT_DIAGRAM_\d+%%$', text_content):
-            p = _p('BodyText')
-            p.addText(text_content)
-            doc.text.addElement(p)
-        else:
-            p = _p('BodyText')
-            for c in node.children: _render_inline(p, c)
-            doc.text.addElement(p)
+        p = _p('BodyText')
+        for c in node.children: _render_inline(p, c)
+        doc.text.addElement(p)
 
     elif tag == 'blockquote':
         for c in node.children:
@@ -305,51 +294,39 @@ def _render_block(doc, node):
         for c in node.children: _render_block(doc, c)
 
 
-def _numero_a_palabra(n):
-    numeros = ['PRIMERO', 'SEGUNDO', 'TERCERO', 'CUARTO', 'QUINTO',
-               'SEXTO', 'SÉPTIMO', 'OCTAVO', 'NOVENO', 'DÉCIMO',
-               'UNDÉCIMO', 'DUODÉCIMO', 'DECIMOTERCERO', 'DECIMOCUARTO', 'DECIMOQUINTO']
-    if 1 <= n <= len(numeros):
-        return numeros[n-1]
-    return str(n)
-
-
-def _render_list(doc, list_node, depth=0, parent_counters=None):
+def _render_list(doc, list_node, depth=0):
     is_ordered = list_node.name == 'ol'
-    if parent_counters is None:
-        parent_counters = []
     idx = 1
     for c in list_node.children:
         if isinstance(c, Tag) and c.name == 'li':
-            _render_list_item(doc, c, depth, is_ordered, idx, parent_counters)
+            _render_list_item(doc, c, depth, is_ordered, idx)
             idx += 1
 
 
-def _render_list_item(doc, li, depth=0, ordered=False, index=1, parent_counters=None):
-    if parent_counters is None:
-        parent_counters = []
-
+def _render_list_item(doc, li, depth=0, ordered=False, index=1):
+    # Prefijos: a), a.1), a.1.1) para ordenadas; •, ◦, ▪ para sin orden
     if ordered:
+        letters = 'abcdefghijklmnopqrstuvwxyz'
         if depth == 0:
-            prefix = f'{_numero_a_palabra(index)}. '
-        elif depth == 1:
-            letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
             prefix = f'{letters[min(index-1, 25)]}) '
+        elif depth == 1:
+            prefix = f'{letters[min(index-1, 25)].upper()}.{index}) '
         else:
             prefix = f'{index}) '
     else:
         bullets = ['•', '◦', '▪']
         prefix = bullets[min(depth, 2)] + ' '
 
+    # Sangría progresiva según profundidad
     indent = '    ' * depth
+
     p = _p('ListItem')
     p.addText(indent + prefix)
-    current_counters = parent_counters + [index]
 
     for c in li.children:
         if isinstance(c, Tag) and c.name in ('ul', 'ol'):
             doc.text.addElement(p)
-            _render_list(doc, c, depth+1, current_counters)
+            _render_list(doc, c, depth+1)
             return
         elif isinstance(c, Tag) and c.name == 'p':
             for ic in c.children: _render_inline(p, ic)
@@ -361,173 +338,33 @@ def _render_list_item(doc, li, depth=0, ordered=False, index=1, parent_counters=
 def _render_table(doc, table_node):
     rows = table_node.find_all('tr')
     if not rows: return
-
-    ncols = 0
-    for r in rows:
-        span = sum(max(1, int(c.get('colspan', 1) or 1)) for c in r.find_all(['th', 'td']))
-        ncols = max(ncols, span)
+    ncols = max(len(r.find_all(['th','td'])) for r in rows)
     if ncols == 0: return
 
     table = Table()
     col_width = f'{15.0/ncols:.2f}cm'
     for _ in range(ncols):
-        tc_col = TableColumn()
-        tc_col.setAttrNS(STYLENS, 'column-width', col_width)
-        table.addElement(tc_col)
+        tc = TableColumn()
+        tc.setAttrNS(STYLENS, 'column-width', col_width)
+        table.addElement(tc)
 
-    covered = set()
-    CoveredCell = _CoveredTableCell if _CoveredTableCell else TableCell
-
-    for row_idx, row_node in enumerate(rows):
+    for row_node in rows:
         tr = TableRow()
-        col = 0
-        for cell in row_node.find_all(['th', 'td']):
-            while col < ncols and (row_idx, col) in covered:
-                tr.addElement(CoveredCell())
-                col += 1
-
+        for cell in row_node.find_all(['th','td']):
             is_header = cell.name == 'th'
-            colspan = max(1, int(cell.get('colspan', 1) or 1))
-            rowspan = max(1, int(cell.get('rowspan', 1) or 1))
-
             tc = TableCell(stylename='CellHeader' if is_header else 'CellNormal')
-            if colspan > 1:
-                tc.setAttrNS(TABLENS, 'number-columns-spanned', str(colspan))
-            if rowspan > 1:
-                tc.setAttrNS(TABLENS, 'number-rows-spanned', str(rowspan))
-
-            for r_off in range(rowspan):
-                for c_off in range(colspan):
-                    if r_off > 0 or c_off > 0:
-                        covered.add((row_idx + r_off, col + c_off))
-
             p = _p('TablePara')
             if is_header:
                 sp = Span(); sp.setAttrNS(TEXTNS, 'style-name', 'Bold')
-                for ch in cell.children: _render_inline(sp, ch)
+                for c in cell.children: _render_inline(sp, c)
                 p.addElement(sp)
             else:
-                for ch in cell.children: _render_inline(p, ch)
+                for c in cell.children: _render_inline(p, c)
             tc.addElement(p)
             tr.addElement(tc)
-
-            for _ in range(1, colspan):
-                tr.addElement(CoveredCell())
-            col += colspan
-
-        while col < ncols:
-            tr.addElement(CoveredCell())
-            col += 1
-
         table.addElement(tr)
 
     doc.text.addElement(table)
-
-# ─── IMAGE EMBEDDING ──────────────────────────────────────────────────────────
-
-def _embed_image_in_doc(doc, png_b64, width_cm=15.0):
-    """Incrusta una imagen PNG base64 en el documento ODT y devuelve el Frame."""
-    if not _HAS_DRAW or not png_b64:
-        return None
-    try:
-        img_data = base64.b64decode(png_b64)
-
-        # Calcular proporciones reales de la imagen
-        try:
-            from PIL import Image as PILImage
-            img = PILImage.open(io.BytesIO(img_data))
-            w_px, h_px = img.size
-            ratio = h_px / w_px if w_px else 0.5
-        except Exception:
-            ratio = 0.5  # fallback si Pillow no está disponible
-
-        height_cm = min(width_cm * ratio, 20.0)
-
-        # Nombre único para la imagen dentro del ZIP del ODT
-        img_name = f'Pictures/diagram_{abs(hash(png_b64[:32]))}.png'
-        doc.addPicture(img_name, 'image/png', img_data)
-
-        # Frame contenedor
-        frame = Frame()
-        frame.setAttrNS(DRAWNS, 'name', img_name.replace('Pictures/', ''))
-        frame.setAttrNS(DRAWNS, 'anchor-type', 'paragraph')
-        frame.setAttrNS(SVGNS,  'width',  f'{width_cm:.2f}cm')
-        frame.setAttrNS(SVGNS,  'height', f'{height_cm:.2f}cm')
-        # wrap: none para que no rodee texto
-        frame.setAttrNS(STYLENS, 'wrap', 'none')
-
-        img_el = OdfImage()
-        img_el.setAttrNS(XLINKNS, 'href',    img_name)
-        img_el.setAttrNS(XLINKNS, 'type',    'simple')
-        img_el.setAttrNS(XLINKNS, 'show',    'embed')
-        img_el.setAttrNS(XLINKNS, 'actuate', 'onLoad')
-        frame.addElement(img_el)
-
-        return frame
-    except Exception as e:
-        print(f'[WARN] No se pudo incrustar imagen: {e}', file=sys.stderr)
-        return None
-
-
-def _get_node_text(node):
-    """Extrae el texto plano de un nodo odfpy de forma robusta."""
-    parts = []
-    # En odfpy los nodos texto son objetos con atributo 'data'
-    for child in node.childNodes:
-        if hasattr(child, 'data'):
-            parts.append(child.data)
-        elif hasattr(child, 'childNodes'):
-            parts.append(_get_node_text(child))
-    return ''.join(parts)
-
-
-def _inject_diagrams(doc, diagrams):
-    """
-    Recorre los párrafos del doc buscando el texto %%ODT_DIAGRAM_N%%
-    y los reemplaza por imágenes incrustadas.
-
-    La estrategia correcta para odfpy:
-      1. Recolectar todos los nodos hijo del texto del documento.
-      2. Identificar los que contienen únicamente el placeholder.
-      3. Sustituirlos por un párrafo con el Frame de la imagen.
-    """
-    if not diagrams:
-        return
-
-    placeholder_re = re.compile(r'^%%ODT_DIAGRAM_(\d+)%%$')
-
-    # Snapshot de los hijos actuales (la lista cambia al modificar)
-    children = list(doc.text.childNodes)
-
-    for node in children:
-        text = _get_node_text(node).strip()
-        m = placeholder_re.match(text)
-        if not m:
-            continue
-
-        idx = int(m.group(1))
-        key = f'DIAGRAM_{idx}'
-        b64 = diagrams.get(key)
-
-        # Construir el párrafo de reemplazo
-        p = _p('DiagramPara')
-
-        if b64:
-            frame = _embed_image_in_doc(doc, b64)
-            if frame:
-                p.addElement(frame)
-            else:
-                p.addText(f'[Diagrama {idx} — no se pudo generar]')
-        else:
-            p.addText(f'[Diagrama {idx} — imagen no recibida]')
-
-        # Insertar antes del placeholder y eliminar éste
-        try:
-            doc.text.insertBefore(p, node)
-            doc.text.removeChild(node)
-        except Exception as e:
-            print(f'[WARN] No se pudo reemplazar placeholder diagrama {idx}: {e}', file=sys.stderr)
-            doc.text.addElement(p)
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
 
@@ -545,32 +382,15 @@ def main():
 
     title    = data.get('title', 'Acuerdo')
     markdown = data.get('markdown', '')
-    meta     = data.get('meta', {})
-    diagrams = data.get('diagrams', {})  # dict: {"DIAGRAM_0": "<base64png>", ...}
 
-    # ── Sustituir bloques ```mermaid ... ``` por placeholders ─────────────────
-    # Esto se hace ANTES de pasar por markdown-it para que no los procese
-    # como bloques de código genéricos.
-    diagram_counter = [0]
+    # Markdown → HTML
+    md   = MarkdownIt('commonmark').enable('table').enable('strikethrough')
+    html = md.render(markdown)
 
-    def _replace_mermaid(m):
-        idx = diagram_counter[0]
-        diagram_counter[0] += 1
-        # El placeholder quedará como párrafo de texto plano en el ODT
-        return f'\n\n%%ODT_DIAGRAM_{idx}%%\n\n'
+    # HTML → BeautifulSoup
+    soup = BeautifulSoup(html, 'html.parser')
 
-    markdown_clean = re.sub(
-        r'```mermaid\n[\s\S]*?```',
-        _replace_mermaid,
-        markdown
-    )
-
-    # ── Markdown → HTML → BeautifulSoup ──────────────────────────────────────
-    md_parser = MarkdownIt('commonmark').enable('table').enable('strikethrough')
-    html      = md_parser.render(markdown_clean)
-    soup      = BeautifulSoup(html, 'html.parser')
-
-    # ── Crear o cargar documento ODT ──────────────────────────────────────────
+    # Load template or create new ODT
     if template and os.path.exists(template):
         doc = load(template)
         for child in list(doc.text.childNodes):
@@ -581,30 +401,16 @@ def main():
 
     _apply_all_styles(doc)
 
-    # ── Metadata ──────────────────────────────────────────────────────────────
-    try:
-        if meta.get('title'):
-            el = odf.dc.Title();   el.addText(meta['title']);   doc.meta.addElement(el)
-        if meta.get('creator'):
-            el = odf.dc.Creator(); el.addText(meta['creator']); doc.meta.addElement(el)
-        if meta.get('subject'):
-            el = odf.dc.Subject(); el.addText(meta['subject']); doc.meta.addElement(el)
-    except Exception:
-        pass
-
-    # ── Título del documento ──────────────────────────────────────────────────
+    # Title
     title_p = _p('Titulo 1')
     title_p.setAttrNS(TEXTNS, 'outline-level', '1')
     _add_text_with_fields(title_p, title)
     doc.text.addElement(title_p)
-    doc.text.addElement(_p('BodyText'))  # línea en blanco
+    doc.text.addElement(_p('BodyText'))  # blank line
 
-    # ── Cuerpo: renderizar todos los nodos HTML ───────────────────────────────
+    # Body
     for node in soup.children:
         _render_block(doc, node)
-
-    # ── Post-proceso: sustituir placeholders por imágenes ────────────────────
-    _inject_diagrams(doc, diagrams)
 
     doc.save(output_path)
     print(f'OK:{output_path}', flush=True)

@@ -7,7 +7,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Gestión de Modelos de Acuerdo</title>
   <!-- Marked.js for Markdown preview -->
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     :root{
@@ -270,32 +270,6 @@
   /* Scroll sutil en el contenedor de campos */
   #ef-campos::-webkit-scrollbar { width: 5px; }
   #ef-campos::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-  /* ── DIAGRAMS ── */
-.mermaid-block {
-  background: var(--surface2);
-  border: 0.5px solid var(--border);
-  border-radius: var(--r);
-  padding: 16px;
-  margin: 12px 0;
-  text-align: center;
-  overflow-x: auto;
-}
-.mermaid-block svg {
-  max-width: 100%;
-  height: auto;
-}
-.mermaid-error {
-  background: var(--red-bg);
-  color: var(--red);
-  border: 0.5px solid #F7C1C1;
-  border-radius: var(--r);
-  padding: 10px 14px;
-  font-size: 12px;
-  font-family: monospace;
-  margin: 8px 0;
-}
-.mdt-diagram { background: var(--purple-bg); color: var(--purple); font-size: 11px; font-weight: 500; }
-.mdt-diagram:hover { background: var(--purple); color: #fff; }
 
   </style>
 </head>
@@ -336,7 +310,6 @@
     <div class="tab active" id="tab-e-btn" onclick="switchTab('editor')">Editor</div>
     <div class="tab hidden" id="tab-c-btn" onclick="switchTab('cats')">Categorías</div>
     <div class="tab hidden" id="tab-t-btn" onclick="switchTab('tpls')">Plantillas</div>
-    <div class="tab hidden" id="tab-campos-btn" onclick="switchTab('campos')">📊 Campos</div>
     <div class="tab hidden" id="tab-u-btn" onclick="switchTab('users')">Usuarios</div>
   </div>
 
@@ -358,7 +331,6 @@
       <div class="viewtoggle">
         <button class="btn btn-sm vtbtn" id="vl-btn" onclick="setView('list')">≡ Lista</button>
         <button class="btn btn-sm vtbtn btn-primary" id="vt-btn" onclick="setView('tree')">🗂 Carpetas</button>
-        <button class="btn btn-sm vtbtn" id="batch-toggle-btn" onclick="toggleBatchMode()" title="Seleccionar modelos para exportar en lote" style="flex:0 0 auto;padding:3px 7px">☑</button>
       </div>
       <div id="view-list" style="display:none" class="modlist"></div>
       <div id="view-tree" class="cattree"></div>
@@ -382,7 +354,6 @@
           <button class="btn btn-sm" id="btn-save" onclick="saveModel()">💾 Guardar</button>
           <button class="btn btn-sm" id="btn-styles" onclick="openStylesEditor()">⚙ Estilos</button>
           <button class="btn btn-sm" id="btn-versions" onclick="openVersions()">🕘 Historial</button>
-          <button class="btn btn-sm" onclick="openQuickPreview()">👁 Vista previa</button>
           <span id="autosave-indicator" style="font-size:11px;color:var(--text3);opacity:0;transition:opacity .3s;margin-left:8px">Guardado automaticamente</span>
           <!-- export dropdown -->
           <div class="export-wrap" id="export-wrap">
@@ -441,12 +412,11 @@
               <button class="mdt" onclick="mdFmt('table')" title="Tabla">⬚ Tabla</button>
               <button class="mdt" onclick="mdFmt('hr')" title="Separador (---/***/___)">—</button>
               <div class="mdtsep"></div>
-              <button class="mdt mdt-diagram" onclick="insertDiagram()" title="Insertar diagrama Mermaid">⬡ Diagrama</button>
-              <div class="mdtsep"></div>
               <button class="mdt mdt-field" onclick="openFieldModal()" title="Campo dinámico">{{campo}}</button>
               <div class="mdtsep"></div> 
                 <button class="mdt" onclick="triggerPasteFromWord()" title="Pegar desde Word/Writer">📋 Pegar Word</button>
               <div class="mdtsep"></div>
+              <span style="font-size:10px;color:var(--text3);margin-left:2px">Vista previa en tiempo real →</span>
             </div>
             <textarea class="md-textarea" id="e-body" placeholder="# Título del acuerdo&#10;&#10;Escriba aquí el cuerpo usando Markdown.&#10;Use {{CAMPO}} para campos dinámicos."
               oninput="updatePreview()" onkeydown="handleTab(event)" onmouseup="saveSel()" onkeyup="saveSel()"></textarea>
@@ -469,7 +439,13 @@
   </div>
 </div>
 
-          <div class="rpanel">
+   <!-- preview + right panel -->
+          <div style="display:flex;flex:1;overflow:hidden">
+            <div class="md-preview">
+              <div class="preview-label">Vista previa</div>
+              <div class="md-preview-body" id="e-preview"></div>
+            </div>
+            <div class="rpanel">
               <div>
                 <div class="ptitle">Campos detectados</div>
                 <div id="r-fields"><span style="font-size:11px;color:var(--text3)">Sin campos</span></div>
@@ -513,29 +489,7 @@
                 </div>
               </div>
             </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ══ CAMPOS TAB ══ -->
-  <div class="abody" id="tab-campos" style="display:none">
-    <div class="tabpanel">
-      <div class="card">
-        <div class="chead">📊 Análisis de campos dinámicos
-          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-            <span id="campos-stats" style="font-size:11px;color:var(--text3)"></span>
-            <button class="btn btn-sm btn-primary" onclick="loadAnalisisCampos()">↻ Actualizar</button>
           </div>
-        </div>
-        <div class="cbody">
-          <p style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6">
-            Lista de todos los <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">{{CAMPOS}}</code> usados en los documentos, ordenados por frecuencia. Usa esta vista para detectar duplicados o nombres inconsistentes y estandarizarlos.
-          </p>
-          <div style="margin-bottom:12px">
-            <input type="text" id="campos-search" placeholder="Buscar campo o nombre…" oninput="filterAnalisisCampos()" style="max-width:320px;font-size:12px"/>
-          </div>
-          <div id="campos-tabla"><p style="color:var(--text3);font-size:13px">Cargando…</p></div>
         </div>
       </div>
     </div>
@@ -773,19 +727,6 @@
     <div id="versions-list" style="padding:0;overflow:auto;border-top:0.5px solid var(--border)"></div>
     <div class="mfoot">
       <button class="btn btn-sm" onclick="closeModal('versions-modal')">Cerrar</button>
-    </div>
-  </div>
-</div>
-
-<!-- Batch Export Modal -->
-<div class="overlay" id="m-export-batch" onclick="if(event.target===this)closeModal('m-export-batch')">
-  <div class="modal modal-lg" style="width:480px;max-height:80vh">
-    <div class="mtitle" id="bf-title">Exportar modelos como ZIP</div>
-    <div class="msub">Rellena los campos comunes que se aplicarán a todos los documentos. Los campos en blanco no se sustituirán.</div>
-    <div id="bf-campos" style="max-height:340px;overflow-y:auto;padding-right:4px;margin-top:14px"></div>
-    <div class="mfoot">
-      <button class="btn btn-sm" onclick="closeModal('m-export-batch')">Cancelar</button>
-      <button class="btn btn-sm btn-success" onclick="confirmBatchExport()">⬇ Exportar ZIP</button>
     </div>
   </div>
 </div>
