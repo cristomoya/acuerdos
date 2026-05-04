@@ -988,7 +988,7 @@ app.post('/api/modelos/:id/campo-tipos', auth, role('admin','editor'), (req, res
   syncGlobalField(campo, { tipo });
   res.json({ ok: true });
 });
-
+//cambios
 // ─── ANÁLISIS DE CAMPOS ────────────────────────────────────────────────────────
 app.get('/api/analisis-campos', auth, role('admin', 'editor'), (req, res) => {
   const CAMPO_RE = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
