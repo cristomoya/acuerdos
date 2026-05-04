@@ -18,6 +18,14 @@ const COLORBG = {blue:'#E6F1FB',teal:'#E1F5EE',amber:'#FAEEDA',green:'#EAF3DE',p
 
 // "?"?"? MARKED CONFIG "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
 const FIELD_RE = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
+// ─── MERMAID INIT ──────────────────────────────────────────────────────────
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'neutral',
+  securityLevel: 'loose',
+  fontFamily: 'Segoe UI, system-ui, sans-serif',
+});
+let _mermaidCounter = 0;
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -75,10 +83,48 @@ function sanitizePreviewHtml(html) {
 }
 
 function mdToHtmlPreview(md) {
-  const escaped = md.replace(FIELD_RE, '<span class="field-tag">{{$1}}</span>');
-  return sanitizePreviewHtml(marked.parse(escaped, { breaks: true, gfm: true }));
-}
+  // Extraer bloques mermaid antes del escape
+  const mermaidBlocks = [];
+  const mdProcessed = md.replace(/```mermaid\n([\s\S]*?)```/g, (_, code) => {
+    const idx = mermaidBlocks.length;
+    mermaidBlocks.push(code.trim());
+    return `%%MERMAID_BLOCK_${idx}%%`;
+  });
 
+  const escaped = mdProcessed.replace(FIELD_RE, '<span class="field-tag">{{$1}}</span>');
+  let html = sanitizePreviewHtml(marked.parse(escaped, { breaks: true, gfm: true }));
+
+  // Reemplazar placeholders con divs mermaid
+  mermaidBlocks.forEach((code, idx) => {
+    const escapedCode = escapeHtml(code);
+    html = html.replace(
+      `%%MERMAID_BLOCK_${idx}%%`,
+      `<div class="mermaid-block" data-mermaid="${escapedCode}"><div class="mermaid-render">Cargando diagrama…</div></div>`
+    );
+    // También puede quedar envuelto en <p> por marked
+    html = html.replace(
+      `<p>%%MERMAID_BLOCK_${idx}%%</p>`,
+      `<div class="mermaid-block" data-mermaid="${escapedCode}"><div class="mermaid-render">Cargando diagrama…</div></div>`
+    );
+  });
+
+  return html;
+}
+async function renderMermaidBlocks(container) {
+  const blocks = container.querySelectorAll('.mermaid-block[data-mermaid]');
+  for (const block of blocks) {
+    const code = block.getAttribute('data-mermaid');
+    const renderEl = block.querySelector('.mermaid-render');
+    if (!renderEl || !code) continue;
+    try {
+      const id = `mermaid-${++_mermaidCounter}`;
+      const { svg } = await mermaid.render(id, code);
+      renderEl.innerHTML = svg;
+    } catch (e) {
+      renderEl.innerHTML = `<div class="mermaid-error">⚠ Error en diagrama: ${escapeHtml(e.message || 'Sintaxis inválida')}</div>`;
+    }
+  }
+}
 // "?"?"? UTILITIES "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
 async function api(method, path, body) {
   const opts = { method, credentials: 'same-origin', headers: {'Content-Type':'application/json', ...(token ? {Authorization:`Bearer ${token}`} : {})} };
@@ -646,44 +692,94 @@ async function openPreview() {
   document.getElementById('preview-content').innerHTML = mdToHtmlPreview(res.cuerpo || '');
   openModal('preview-modal');
 }
-
-async function doExportPdf() {
-  if (!activeId) return;
-  const expediente = document.getElementById('ex-clave')?.value?.trim();
-  const inputs = document.querySelectorAll('.ex-field');
-  const campos = {};
-  inputs.forEach(inp => { if (inp.value.trim()) campos[inp.dataset.campo] = inp.value.trim(); });
-  if (expediente && typeof loadExpedientesDB === 'function') {
-    const all = await loadExpedientesDB();
-    if (all[expediente]) Object.assign(campos, all[expediente]);
-    if (Object.keys(campos).length && typeof saveExpedienteDB === 'function') {
-      await saveExpedienteDB(expediente, campos);
+async function _extractDiagramsAsBase64(md) {
+  // Renderiza cada bloque mermaid a SVG y lo convierte a dataURL PNG via canvas
+  const diagrams = [];
+  const regex = /```mermaid\n([\s\S]*?)```/g;
+  let match;
+  let idx = 0;
+  while ((match = regex.exec(md)) !== null) {
+    const code = match[1].trim();
+    try {
+      const id = `export-mermaid-${Date.now()}-${idx++}`;
+      const { svg } = await mermaid.render(id, code);
+      // Convertir SVG a PNG via canvas
+      const png = await _svgToPng(svg);
+      diagrams.push({ placeholder: match[0], base64: png, svg });
+    } catch (e) {
+      diagrams.push({ placeholder: match[0], base64: null, svg: null, error: e.message });
     }
   }
-  const res = await fetch(`${API}/modelos/${activeId}/export/pdf`, {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
-    body: JSON.stringify({ campos })
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Fallo PDF' }));
-    alert('Error: ' + (err.error || 'Fallo PDF'));
-    return;
-  }
-  const blob = await res.blob();
-  const a = document.createElement('a');
-  const nombre = (document.getElementById('e-name')?.value || 'modelo').replace(/[/\\?%*:|"<>]/g, '_');
-  const url = URL.createObjectURL(blob);
-  a.href = url;
-  a.download = `${nombre}.pdf`;
-  a.click();
-  URL.revokeObjectURL(url);
+  return diagrams;
 }
 
+function _svgToPng(svgString) {
+  return new Promise((resolve) => {
+    // Extraer width/height del SVG para dimensionar el canvas
+    const parser = new DOMParser();
+    const svgDoc = parser.parseFromString(svgString, 'image/svg+xml');
+    const svgEl = svgDoc.documentElement;
+    const vb = svgEl.getAttribute('viewBox');
+    let w = parseFloat(svgEl.getAttribute('width')) || 800;
+    let h = parseFloat(svgEl.getAttribute('height')) || 400;
+    if (vb) {
+      const parts = vb.split(/[\s,]+/);
+      if (parts.length === 4) { w = parseFloat(parts[2]) || w; h = parseFloat(parts[3]) || h; }
+    }
+    // Escalar al doble para mejor resolución
+    const scale = Math.min(2, 1600 / w);
+    const canvas = document.createElement('canvas');
+    canvas.width = w * scale;
+    canvas.height = h * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(scale, scale);
+    const img = new Image();
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/png').split(',')[1]); // solo la parte base64
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+async function _doExport(plantillaId, camposObj) {
+  if (!activeId) return;
+  const tplName = plantillaId ? (tpls.find(t=>t.id===plantillaId)?.nombre||'plantilla') : 'estilos por defecto';
+  toast(`Generando .odt con ${tplName}…`, 4000);
+
+  // Renderizar diagramas Mermaid a base64
+  const md = document.getElementById('e-body').value;
+  const diagrams = await _extractDiagramsAsBase64(md);
+  const diagramsMap = {};
+  diagrams.forEach((d, i) => {
+    if (d.base64) diagramsMap[`DIAGRAM_${i}`] = d.base64;
+  });
+
+  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  const res = await fetch(`/api/modelos/${activeId}/export/odt`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ plantilla_id: plantillaId, campos: camposObj, diagrams: diagramsMap })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({error:'Error desconocido'}));
+    toast('Error: ' + err.error); return;
+  }
+
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (document.getElementById('e-name').value||'modelo').replace(/[/\\?%*:|"<>]/g,'_') + '.odt';
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('Exportado a .odt ✓');
+  setTimeout(() => openModel(activeId), 800);
+}
 async function loadCampoTipos(modeloId) {
   try {
     const rows = await api('GET', `/modelos/${modeloId}/campo-tipos`);
@@ -1125,6 +1221,12 @@ async function confirmBatchExport() {
 
 // "?"?"? MARKDOWN EDITOR "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
 function updatePreview() {
+  const md = document.getElementById('e-body').value;
+  const previewEl = document.querySelector('.md-preview-body');
+  if (previewEl) {
+    previewEl.innerHTML = mdToHtmlPreview(md);
+    renderMermaidBlocks(previewEl);
+  }
   detectFields();
 }
 
@@ -1133,7 +1235,9 @@ function openQuickPreview() {
   const md = document.getElementById('e-body').value;
   const nombre = document.getElementById('e-name')?.value || '';
   document.getElementById('preview-title').textContent = 'Vista previa: ' + nombre;
-  document.getElementById('preview-content').innerHTML = mdToHtmlPreview(md);
+  const contentEl = document.getElementById('preview-content');
+  contentEl.innerHTML = mdToHtmlPreview(md);
+  renderMermaidBlocks(contentEl);
   openModal('preview-modal');
 }
 
@@ -1775,7 +1879,23 @@ function _htmlToMarkdown(html) {
   md = md.replace(/^\s+$/gm, '');
   return md;
 }
+function insertDiagram() {
+  const templates = {
+    flowchart: `\`\`\`mermaid\nflowchart LR\n    A[Inicio] --> B{¿Condición?}\n    B -- Sí --> C[Acción A]\n    B -- No --> D[Acción B]\n    C --> E[Fin]\n    D --> E\n\`\`\``,
+    sequence: `\`\`\`mermaid\nsequenceDiagram\n    Ayuntamiento->>Contratista: Resolución adjudicación\n    Contratista-->>Ayuntamiento: Acuse de recibo\n    Ayuntamiento->>Contratista: Formalización contrato\n\`\`\``,
+    gantt: `\`\`\`mermaid\ngantt\n    title Planificación del contrato\n    dateFormat  YYYY-MM-DD\n    section Licitación\n    Publicación BOP     :2024-01-01, 15d\n    Plazo ofertas       :15d\n    section Ejecución\n    Adjudicación        :2024-02-01, 10d\n    Ejecución obras     :60d\n\`\`\``,
+    pie: `\`\`\`mermaid\npie title Distribución presupuestaria\n    "Personal" : 42\n    "Inversiones" : 28\n    "Servicios" : 18\n    "Otros" : 12\n\`\`\``,
+  };
 
+  // Pequeño selector de tipo
+  const type = prompt(
+    'Tipo de diagrama:\n1) Flujo (flowchart)\n2) Secuencia\n3) Gantt\n4) Tarta (pie)\n\nEscribe el número:',
+    '1'
+  );
+  const map = { '1': 'flowchart', '2': 'sequence', '3': 'gantt', '4': 'pie' };
+  const chosen = map[type?.trim()] || 'flowchart';
+  _insertMarkdown('\n' + templates[chosen] + '\n');
+}
 function _nodeToMd(node) {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent;
   if (node.nodeType !== Node.ELEMENT_NODE) return '';

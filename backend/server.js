@@ -712,7 +712,7 @@ function _buildOdtFilename(modeloNombre, camposObj) {
   return [base, expPart, fechaStr].filter(Boolean).join('_') + '.odt';
 }
 
-async function _generateOdtBuffer(modelo, camposObj, plantillaId) {
+async function _generateOdtBuffer(modelo, camposObj, plantillaId, diagrams = {}) {
   let templatePath = null;
   if (plantillaId) {
     const p = db.prepare('SELECT filename FROM plantillas WHERE id=?').get(plantillaId);
@@ -744,6 +744,7 @@ async function _generateOdtBuffer(modelo, camposObj, plantillaId) {
     markdown: cuerpo,
     categoria: modelo.categoria_nombre || '',
     estilo_config: modelo.estilo_config ? JSON.parse(modelo.estilo_config) : {},
+    diagrams: diagrams || {},
     meta: {
       title: modelo.nombre,
       creator: 'Gestión de Modelos',
@@ -769,23 +770,21 @@ async function _generateOdtBuffer(modelo, camposObj, plantillaId) {
   }
 }
 
-// ??? Helper compartido para generar ODT ???????????????????????????????????????
-async function _doExportOdt(req, res, plantillaId, camposObj) {
+async function _doExportOdt(req, res, plantillaId, camposObj, diagrams = {}) {
   const modelo = db.prepare(`SELECT m.*,c.nombre as categoria_nombre FROM modelos m
     LEFT JOIN categorias c ON m.categoria_id=c.id WHERE m.id=?`).get(req.params.id);
   if (!modelo) return res.status(404).json({ error: 'No encontrado' });
 
   try {
-    const buf = await _generateOdtBuffer(modelo, camposObj, plantillaId);
+    const buf = await _generateOdtBuffer(modelo, camposObj, plantillaId, diagrams);
 
-    // Save copy in category folder
     if (modelo.categoria_nombre) {
       const dir = path.join(FILES_DIR, sanitizeName(modelo.categoria_nombre));
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, `${sanitizeName(modelo.nombre)}_${Date.now()}.odt`), buf);
     }
 
-    db.prepare('INSERT INTO actividad (modelo_id,user_id,accion) VALUES (?,?,?)').run(modelo.id, req.user.id, 'export a .odt');
+    db.prepare('INSERT INTO actividad (modelo_id,user_id,accion) VALUES (?,?,?)').run(modelo.id, req.user.id, 'exportó a .odt');
 
     res.setHeader('Content-Type', 'application/vnd.oasis.opendocument.text');
     const filename = _buildOdtFilename(modelo.nombre, camposObj);
@@ -796,6 +795,57 @@ async function _doExportOdt(req, res, plantillaId, camposObj) {
     res.status(500).json({ error: 'Error generando ODT: ' + e.message });
   }
 }
+
+// GET: exportar sin sustitución de campos (compatibilidad)
+app.get('/api/modelos/:id/export/odt', auth, async (req, res) => {
+  const plantillaId = req.query.plantilla_id || null;
+  await _doExportOdt(req, res, plantillaId, null, {});
+});
+
+// POST: exportar con sustitución de campos {{ }} por valores del formulario
+app.post('/api/modelos/:id/export/odt', auth, async (req, res) => {
+  const { plantilla_id, campos, diagrams } = req.body;
+  await _doExportOdt(req, res, plantilla_id || null, campos || {}, diagrams || {});
+});
+
+// POST: exportar múltiples modelos como ZIP de ODTs
+app.post('/api/export/batch-odt', auth, async (req, res) => {
+  const { ids, campos, plantilla_id, diagrams } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0)
+    return res.status(400).json({ error: 'Se requiere al menos un modelo' });
+  if (ids.length > 50)
+    return res.status(400).json({ error: 'Máximo 50 modelos por lote' });
+
+  res.setHeader('Content-Type', 'application/zip');
+  const dateStr = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Disposition', `attachment; filename="modelos_${dateStr}.zip"`);
+
+  const archive = archiver('zip', { zlib: { level: 6 } });
+  archive.on('error', err => { console.error('Archiver error:', err); });
+  archive.pipe(res);
+
+  const usedNames = new Set();
+  for (const id of ids) {
+    try {
+      const modelo = db.prepare(`SELECT m.*, c.nombre as categoria_nombre FROM modelos m
+        LEFT JOIN categorias c ON m.categoria_id=c.id WHERE m.id=?`).get(id);
+      if (!modelo) continue;
+      const buf = await _generateOdtBuffer(modelo, campos || {}, plantilla_id || null, diagrams || {});
+      let filename = _buildOdtFilename(modelo.nombre, campos || {});
+      if (usedNames.has(filename)) {
+        filename = filename.replace('.odt', `_${modelo.id}.odt`);
+      }
+      usedNames.add(filename);
+      archive.append(buf, { name: filename });
+      db.prepare('INSERT INTO actividad (modelo_id,user_id,accion) VALUES (?,?,?)')
+        .run(modelo.id, req.user.id, 'export batch .odt');
+    } catch (e) {
+      console.error(`Batch ODT error model ${id}:`, e.message);
+    }
+  }
+
+  await archive.finalize().catch(err => console.error('Archiver finalize error:', err));
+});
 
 // GET: exportar sin sustitucion de campos (compatibilidad)
 app.get('/api/modelos/:id/export/odt', auth, async (req, res) => {

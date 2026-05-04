@@ -4,6 +4,13 @@ export_odt.py — Markdown → HTML → ODT
 Estilos fijos: Arial, encabezados 12pt negrita, cuerpo 10pt,
 sangría primera línea 1.2cm, tablas con bordes, citas Book Antiqua 9pt itálica fondo azul claro.
 """
+import base64, io, tempfile
+try:
+    from odf.draw import Frame, Image as OdfImage
+    from odf.namespaces import DRAWNS, XLINKNS
+    _HAS_DRAW = True
+except ImportError:
+    _HAS_DRAW = False
 
 import sys, json, re, os
 from markdown_it import MarkdownIt
@@ -467,8 +474,154 @@ def _render_table(doc, table_node):
     doc.text.addElement(table)
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
+def _embed_image_in_doc(doc, png_b64, width_cm=15.0):
+    """Incrusta una imagen PNG base64 en el documento ODT."""
+    if not _HAS_DRAW or not png_b64:
+        return None
+    try:
+        img_data = base64.b64decode(png_b64)
+        # Calcular proporciones
+        from PIL import Image as PILImage
+        img = PILImage.open(io.BytesIO(img_data))
+        w_px, h_px = img.size
+        ratio = h_px / w_px if w_px else 0.5
+        height_cm = width_cm * ratio
+        height_cm = min(height_cm, 20.0)  # máx 20cm de alto
 
+        # Añadir imagen al ODT como binario
+        img_filename = f'Pictures/diagram_{id(png_b64)}.png'
+        doc.addPicture(img_filename, 'image/png', img_data)
+
+        # Crear frame con la imagen
+        frame = Frame()
+        frame.setAttrNS(DRAWNS, 'name', f'diagram_{id(png_b64)}')
+        frame.setAttrNS(DRAWNS, 'anchor-type', 'paragraph')
+        frame.setAttrNS(STYLENS, 'wrap', 'none')
+        from odf.namespaces import SVGNS
+        frame.setAttrNS(SVGNS, 'width', f'{width_cm:.2f}cm')
+        frame.setAttrNS(SVGNS, 'height', f'{height_cm:.2f}cm')
+
+        img_el = OdfImage()
+        img_el.setAttrNS(XLINKNS, 'href', img_filename)
+        img_el.setAttrNS(XLINKNS, 'type', 'simple')
+        img_el.setAttrNS(XLINKNS, 'show', 'embed')
+        img_el.setAttrNS(XLINKNS, 'actuate', 'onLoad')
+        frame.addElement(img_el)
+
+        return frame
+    except Exception as e:
+        print(f'[WARN] No se pudo incrustar imagen: {e}', file=sys.stderr)
+        return None
+    
+    
+def _inject_diagrams(doc, diagram_order, diagrams):
+    """Recorre los párrafos del doc y reemplaza placeholders %%ODT_DIAGRAM_N%% por imágenes."""
+    if not diagrams:
+        return
+    import re as _re
+    nodes_to_replace = []
+    for child in list(doc.text.childNodes):
+        text = child.getAttribute(('urn:oasis:names:tc:opendocument:xmlns:text:1.0', 'text')) if hasattr(child, 'getAttribute') else ''
+        try:
+            full_text = ''.join(str(t) for t in child.childNodes if hasattr(t, 'data') or isinstance(t, str))
+        except Exception:
+            full_text = ''
+        m = _re.match(r'%%ODT_DIAGRAM_(\d+)%%', full_text.strip())
+        if m:
+            nodes_to_replace.append((child, int(m.group(1))))
+
+    for (node, idx) in nodes_to_replace:
+        key = f'DIAGRAM_{idx}'
+        b64 = diagrams.get(key)
+        frame = _embed_image_in_doc(doc, b64) if b64 else None
+        if frame:
+            p = _p('BodyText')
+            p.setAttrNS(('urn:oasis:names:tc:opendocument:xmlns:text:1.0', 'text-align'), 'center')
+            p.addElement(frame)
+            try:
+                doc.text.insertBefore(p, node)
+                doc.text.removeChild(node)
+            except Exception:
+                doc.text.addElement(p)
+        else:
+            # Sin imagen: dejar un párrafo indicativo
+            p = _p('BodyText')
+            p.addText('[Diagrama no disponible]')
+            try:
+                doc.text.insertBefore(p, node)
+                doc.text.removeChild(node)
+            except Exception:
+                doc.text.addElement(p)    
 def main():
+    if len(sys.argv) < 3:
+        print('Usage: export_odt.py <input.json> <output.odt> [template]', file=sys.stderr)
+        sys.exit(1)
+
+    input_path  = sys.argv[1]
+    output_path = sys.argv[2]
+    template    = sys.argv[3] if len(sys.argv) > 3 else None
+
+    with open(input_path, encoding='utf-8') as f:
+        data = json.load(f)
+
+    title    = data.get('title', 'Acuerdo')
+    markdown = data.get('markdown', '')
+    meta     = data.get('meta', {})
+    diagrams = data.get('diagrams', {})  # ← NUEVO: dict {DIAGRAM_0: base64png, ...}
+
+    # Sustituir bloques mermaid por placeholders con índice
+    diagram_order = []
+    def _replace_mermaid(m):
+        idx = len(diagram_order)
+        diagram_order.append(f'DIAGRAM_{idx}')
+        return f'\n\n%%ODT_DIAGRAM_{idx}%%\n\n'
+
+    markdown_clean = re.sub(r'```mermaid\n[\s\S]*?```', _replace_mermaid, markdown)
+
+    # Markdown → HTML → soup (sin los bloques mermaid)
+    md   = MarkdownIt('commonmark').enable('table').enable('strikethrough')
+    html = md.render(markdown_clean)
+    soup = BeautifulSoup(html, 'html.parser')
+
+    # ... resto del setup del doc (igual que antes) ...
+    if template and os.path.exists(template):
+        doc = load(template)
+        for child in list(doc.text.childNodes):
+            doc.text.removeChild(child)
+    else:
+        doc = OpenDocumentText()
+        _apply_page_layout(doc)
+
+    _apply_all_styles(doc)
+
+    # Metadata
+    try:
+        if meta.get('title'):
+            el = odf.dc.Title(); el.addText(meta['title']); doc.meta.addElement(el)
+        if meta.get('creator'):
+            el = odf.dc.Creator(); el.addText(meta['creator']); doc.meta.addElement(el)
+        if meta.get('subject'):
+            el = odf.dc.Subject(); el.addText(meta['subject']); doc.meta.addElement(el)
+    except Exception:
+        pass
+
+    # Title
+    title_p = _p('Titulo 1')
+    title_p.setAttrNS(TEXTNS, 'outline-level', '1')
+    _add_text_with_fields(title_p, title)
+    doc.text.addElement(title_p)
+    doc.text.addElement(_p('BodyText'))
+
+    # Body — renderizar, inyectando imágenes donde había diagramas
+    for node in soup.children:
+        _render_block(doc, node)
+
+    # Post-proceso: sustituir placeholders por imágenes
+    # (los placeholders quedan como párrafos de texto)
+    _inject_diagrams(doc, diagram_order, diagrams)
+
+    doc.save(output_path)
+    print(f'OK:{output_path}', flush=True)
     if len(sys.argv) < 3:
         print('Usage: export_odt.py <input.json> <output.odt> [template]', file=sys.stderr)
         sys.exit(1)

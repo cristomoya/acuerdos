@@ -7,7 +7,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Gestión de Modelos de Acuerdo</title>
   <!-- Marked.js for Markdown preview -->
-  
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     :root{
@@ -270,6 +270,32 @@
   /* Scroll sutil en el contenedor de campos */
   #ef-campos::-webkit-scrollbar { width: 5px; }
   #ef-campos::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  /* ── DIAGRAMS ── */
+.mermaid-block {
+  background: var(--surface2);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px;
+  margin: 12px 0;
+  text-align: center;
+  overflow-x: auto;
+}
+.mermaid-block svg {
+  max-width: 100%;
+  height: auto;
+}
+.mermaid-error {
+  background: var(--red-bg);
+  color: var(--red);
+  border: 0.5px solid #F7C1C1;
+  border-radius: var(--r);
+  padding: 10px 14px;
+  font-size: 12px;
+  font-family: monospace;
+  margin: 8px 0;
+}
+.mdt-diagram { background: var(--purple-bg); color: var(--purple); font-size: 11px; font-weight: 500; }
+.mdt-diagram:hover { background: var(--purple); color: #fff; }
 
   </style>
 </head>
@@ -414,6 +440,8 @@
               <button class="mdt" onclick="mdFmt('code')" title="Bloque de código (```)">{}</button>
               <button class="mdt" onclick="mdFmt('table')" title="Tabla">⬚ Tabla</button>
               <button class="mdt" onclick="mdFmt('hr')" title="Separador (---/***/___)">—</button>
+              <div class="mdtsep"></div>
+              <button class="mdt mdt-diagram" onclick="insertDiagram()" title="Insertar diagrama Mermaid">⬡ Diagrama</button>
               <div class="mdtsep"></div>
               <button class="mdt mdt-field" onclick="openFieldModal()" title="Campo dinámico">{{campo}}</button>
               <div class="mdtsep"></div> 
