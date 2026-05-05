@@ -23,6 +23,7 @@ from markdown_it import MarkdownIt
 from odf.namespaces import FONS, TEXTNS
 from odf.opendocument import OpenDocumentText, load
 from odf.style import ParagraphProperties, Style, TextProperties
+from odf.table import Table, TableCell, TableColumn, TableRow
 from odf.text import LineBreak, P, Span
 
 FONT_BODY = "Arial"
@@ -456,18 +457,42 @@ def _render_rule(doc, *, prefix=""):
 
 def _render_table(doc, node, *, prefix=""):
     rows = []
+    max_cols = 0
     for tr in node.find_all("tr", recursive=True):
         cells = []
         for cell in tr.find_all(["th", "td"], recursive=False):
-            cells.append(cell.get_text(" ", strip=True))
+            cells.append(cell)
         if cells:
-            rows.append(" | ".join(cells))
-    for row in rows:
-        p = _p(STYLE_NAMES["body"])
-        if prefix:
-            p.addText(prefix)
-        p.addText(row)
-        doc.text.addElement(p)
+            rows.append(cells)
+            max_cols = max(max_cols, len(cells))
+
+    if not rows:
+        return
+
+    table = Table(name="Tabla")
+    for _ in range(max_cols or 1):
+        table.addElement(TableColumn())
+
+    for row_cells in rows:
+        tr = TableRow()
+        for cell in row_cells:
+            tc = TableCell()
+            cell_p = _p(STYLE_NAMES["body"])
+            if prefix:
+                cell_p.addText(prefix)
+            if cell.name.lower() == "th":
+                header = _span(STYLE_NAMES["strong"])
+                for child in cell.children:
+                    _render_inline(header, child)
+                cell_p.addElement(header)
+            else:
+                for child in cell.children:
+                    _render_inline(cell_p, child)
+            tc.addElement(cell_p)
+            tr.addElement(tc)
+        table.addElement(tr)
+
+    doc.text.addElement(table)
 
 
 def _render_list_item(doc, li, *, ordered, index, level=0, prefix=""):
