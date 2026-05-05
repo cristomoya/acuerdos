@@ -712,7 +712,7 @@ function _buildOdtFilename(modeloNombre, camposObj) {
   return [base, expPart, fechaStr].filter(Boolean).join('_') + '.odt';
 }
 
-async function _generateOdtBuffer(modelo, camposObj, plantillaId) {
+async function _generateOdtBuffer(modelo, camposObj, plantillaId, styleMode = 'oficial') {
   let templatePath = null;
   if (plantillaId) {
     const p = db.prepare('SELECT filename FROM plantillas WHERE id=?').get(plantillaId);
@@ -742,6 +742,7 @@ async function _generateOdtBuffer(modelo, camposObj, plantillaId) {
   const payload = {
     title: modelo.nombre,
     markdown: cuerpo,
+    style_mode: ['oficial', 'moderno', 'mixto'].includes(styleMode) ? styleMode : 'oficial',
     categoria: modelo.categoria_nombre || '',
     estilo_config: modelo.estilo_config ? JSON.parse(modelo.estilo_config) : {},
     meta: {
@@ -770,13 +771,13 @@ async function _generateOdtBuffer(modelo, camposObj, plantillaId) {
 }
 
 // ??? Helper compartido para generar ODT ???????????????????????????????????????
-async function _doExportOdt(req, res, plantillaId, camposObj) {
+async function _doExportOdt(req, res, plantillaId, camposObj, styleMode) {
   const modelo = db.prepare(`SELECT m.*,c.nombre as categoria_nombre FROM modelos m
     LEFT JOIN categorias c ON m.categoria_id=c.id WHERE m.id=?`).get(req.params.id);
   if (!modelo) return res.status(404).json({ error: 'No encontrado' });
 
   try {
-    const buf = await _generateOdtBuffer(modelo, camposObj, plantillaId);
+    const buf = await _generateOdtBuffer(modelo, camposObj, plantillaId, styleMode);
 
     // Save copy in category folder
     if (modelo.categoria_nombre) {
@@ -800,18 +801,19 @@ async function _doExportOdt(req, res, plantillaId, camposObj) {
 // GET: exportar sin sustitucion de campos (compatibilidad)
 app.get('/api/modelos/:id/export/odt', auth, async (req, res) => {
   const plantillaId = req.query.plantilla_id || null;
-  await _doExportOdt(req, res, plantillaId, null);
+  const styleMode = req.query.style_mode || 'oficial';
+  await _doExportOdt(req, res, plantillaId, null, styleMode);
 });
 
 // POST: exportar con sustitucion de campos {{ }} por valores del formulario
 app.post('/api/modelos/:id/export/odt', auth, async (req, res) => {
-  const { plantilla_id, campos } = req.body;
-  await _doExportOdt(req, res, plantilla_id || null, campos || {});
+  const { plantilla_id, campos, style_mode } = req.body;
+  await _doExportOdt(req, res, plantilla_id || null, campos || {}, style_mode || 'oficial');
 });
 
 // POST: exportar múltiples modelos como ZIP de ODTs
 app.post('/api/export/batch-odt', auth, async (req, res) => {
-  const { ids, campos, plantilla_id } = req.body;
+  const { ids, campos, plantilla_id, style_mode } = req.body;
   if (!Array.isArray(ids) || ids.length === 0)
     return res.status(400).json({ error: 'Se requiere al menos un modelo' });
   if (ids.length > 50)
@@ -831,7 +833,7 @@ app.post('/api/export/batch-odt', auth, async (req, res) => {
       const modelo = db.prepare(`SELECT m.*, c.nombre as categoria_nombre FROM modelos m
         LEFT JOIN categorias c ON m.categoria_id=c.id WHERE m.id=?`).get(id);
       if (!modelo) continue;
-      const buf = await _generateOdtBuffer(modelo, campos || {}, plantilla_id || null);
+      const buf = await _generateOdtBuffer(modelo, campos || {}, plantilla_id || null, style_mode || 'oficial');
       let filename = _buildOdtFilename(modelo.nombre, campos || {});
       // Ensure unique filenames within the ZIP
       if (usedNames.has(filename)) {

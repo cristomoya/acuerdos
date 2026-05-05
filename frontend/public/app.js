@@ -756,6 +756,17 @@ async function restoreVersion(versionId) {
 
 // "?"?"? EXPORT CON FORMULARIO DE CAMPOS "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
 let _exportPlantillaId = null;
+const _EXPORT_STYLE_MODE_KEY = 'export_style_mode';
+
+function _getExportStyleMode() {
+  return localStorage.getItem(_EXPORT_STYLE_MODE_KEY) || 'oficial';
+}
+
+function _setExportStyleMode(mode) {
+  const next = ['oficial', 'moderno', 'mixto'].includes(mode) ? mode : 'oficial';
+  localStorage.setItem(_EXPORT_STYLE_MODE_KEY, next);
+  return next;
+}
 
 function openExportFieldsModal(plantillaId) {
   if (!activeId) return;
@@ -767,6 +778,7 @@ function openExportFieldsModal(plantillaId) {
     ? (tpls.find(t => t.id === plantillaId)?.nombre || 'Plantilla')
     : 'Sin plantilla (estilos por defecto)';
   document.getElementById('ef-tpl-name').textContent = tplName;
+  document.getElementById('ef-style-mode').value = _getExportStyleMode();
 
   // Detectar campos del markdown actual
   const md = document.getElementById('e-body').value;
@@ -958,6 +970,7 @@ async function confirmExportFields() {
   const container = document.getElementById('ef-campos');
   const campos = JSON.parse(container.dataset.campos || '[]');
   const clave  = container.dataset.clave;
+  const styleMode = _setExportStyleMode(document.getElementById('ef-style-mode')?.value || 'oficial');
 
   const camposObj = {};
   campos.forEach(campo => {
@@ -980,19 +993,20 @@ async function confirmExportFields() {
   }
 
   closeModal('m-export-fields');
-  await _doExport(_exportPlantillaId, camposObj);
+  await _doExport(_exportPlantillaId, camposObj, styleMode);
 }
 
-async function _doExport(plantillaId, camposObj) {
+async function _doExport(plantillaId, camposObj, styleMode) {
   if (!activeId) return;
   const tplName = plantillaId ? (tpls.find(t=>t.id===plantillaId)?.nombre||'plantilla') : 'estilos por defecto';
-  toast(`Generando .odt con ${tplName}?`, 4000);
+  const modeLabel = styleMode === 'mixto' ? 'mixto' : styleMode === 'moderno' ? 'moderno' : 'oficial';
+  toast(`Generando .odt con ${tplName} (${modeLabel})...`, 4000);
 
   const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
   const res = await fetch(`/api/modelos/${activeId}/export/odt`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ plantilla_id: plantillaId, campos: camposObj })
+    body: JSON.stringify({ plantilla_id: plantillaId, campos: camposObj, style_mode: styleMode })
   });
 
   if (!res.ok) {
@@ -1083,6 +1097,7 @@ async function openBatchExportModal() {
   }).join('');
 
   document.getElementById('bf-title').textContent = `Exportar ${ids.length} modelo${ids.length!==1?'s':''} como ZIP`;
+  document.getElementById('bf-style-mode').value = _getExportStyleMode();
   openModal('m-export-batch');
   setTimeout(() => container.querySelector('input')?.focus(), 80);
 }
@@ -1090,6 +1105,7 @@ async function openBatchExportModal() {
 async function confirmBatchExport() {
   const container = document.getElementById('bf-campos');
   const campos = JSON.parse(container.dataset.campos || '[]');
+  const styleMode = _setExportStyleMode(document.getElementById('bf-style-mode')?.value || 'oficial');
   const camposObj = {};
   campos.forEach(campo => {
     const input = document.querySelector(`.bf-field[data-campo="${campo}"]`);
@@ -1105,7 +1121,7 @@ async function confirmBatchExport() {
     const res = await fetch('/api/export/batch-odt', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ ids, campos: camposObj })
+      body: JSON.stringify({ ids, campos: camposObj, style_mode: styleMode })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Error desconocido' }));
