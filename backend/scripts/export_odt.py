@@ -42,6 +42,7 @@ STYLE_NAMES = {
     "codeblock": "AC_CodeBlock",
     "rule": "AC_Rule",
     "table_cell": "AC_TableCell",
+    "table_cell_alt": "AC_TableCellAlt",
     "table_header": "AC_TableHeader",
     "strong": "AC_Strong",
     "em": "AC_Emphasis",
@@ -152,6 +153,7 @@ def _add_table_cell_style(
     border="0.5pt solid #d0d7de",
     padding="0.12cm",
     bold=False,
+    color=None,
 ):
     style = Style(name=name, family="table-cell")
     cp = TableCellProperties()
@@ -159,6 +161,10 @@ def _add_table_cell_style(
         cp.setAttrNS(FONS, "background-color", bg)
     if border:
         cp.setAttrNS(FONS, "border", border)
+        cp.setAttrNS(FONS, "border-left", border)
+        cp.setAttrNS(FONS, "border-right", border)
+        cp.setAttrNS(FONS, "border-top", border)
+        cp.setAttrNS(FONS, "border-bottom", border)
     if padding:
         cp.setAttrNS(FONS, "padding", padding)
     cp.setAttrNS(FONS, "vertical-align", "middle")
@@ -169,9 +175,35 @@ def _add_table_cell_style(
     tp.setAttrNS(FONS, "font-size", "10pt")
     if bold:
         tp.setAttrNS(FONS, "font-weight", "bold")
+    if color:
+        tp.setAttrNS(FONS, "color", color)
     style.addElement(tp)
 
     doc.styles.addElement(style)
+
+
+def _add_table_paragraph_style(
+    doc,
+    name,
+    *,
+    bold=False,
+    bg=None,
+    color=None,
+):
+    _add_paragraph_style(
+        doc,
+        name,
+        size="10pt",
+        bold=bold,
+        align="start",
+        mb="0cm",
+        mt="0cm",
+        lineheight="120%",
+        font=FONT_BODY,
+        first_indent=None,
+        bg=bg,
+        color=color,
+    )
 
 
 def _apply_common_styles(doc, *, title1_size, title2_size, title3_size, body_align, body_indent, body_lineheight, list_align, list_indent, list_left_margin):
@@ -298,8 +330,11 @@ def _apply_common_styles(doc, *, title1_size, title2_size, title3_size, body_ali
     _add_text_style(doc, STYLE_NAMES["code"], font=FONT_CODE, bg="#f5f5f5")
     _add_text_style(doc, STYLE_NAMES["link"], color="#1a5fb4", underline=True)
     _add_text_style(doc, STYLE_NAMES["strike"], strike=True)
-    _add_table_cell_style(doc, STYLE_NAMES["table_cell"], bg="#ffffff", border="0.5pt solid #d0d7de", padding="0.12cm")
-    _add_table_cell_style(doc, STYLE_NAMES["table_header"], bg="#eef4ff", border="0.6pt solid #b7c7e6", padding="0.12cm", bold=True)
+    _add_table_cell_style(doc, STYLE_NAMES["table_cell"], bg="#ffffff", border="0.6pt solid #cbd5e1", padding="0.14cm")
+    _add_table_cell_style(doc, STYLE_NAMES["table_cell_alt"], bg="#f8fbff", border="0.6pt solid #cbd5e1", padding="0.14cm")
+    _add_table_cell_style(doc, STYLE_NAMES["table_header"], bg="#1d4ed8", border="0.8pt solid #1e40af", padding="0.16cm", bold=True, color="#ffffff")
+    _add_table_paragraph_style(doc, "AC_TableText")
+    _add_table_paragraph_style(doc, "AC_TableHeaderText", bold=True, bg="#1d4ed8", color="#ffffff")
 
 
 def _apply_all_styles_oficial(doc):
@@ -508,19 +543,18 @@ def _render_table(doc, node, *, prefix=""):
     for _ in range(max_cols or 1):
         table.addElement(TableColumn())
 
-    for row_cells in rows:
+    for row_idx, row_cells in enumerate(rows):
         tr = TableRow()
         for cell in row_cells:
             is_header = cell.name.lower() == "th"
-            tc = TableCell(stylename=STYLE_NAMES["table_header"] if is_header else STYLE_NAMES["table_cell"])
-            cell_p = _p(STYLE_NAMES["body"])
+            cell_style = STYLE_NAMES["table_header"] if is_header else (STYLE_NAMES["table_cell"] if row_idx % 2 == 0 else STYLE_NAMES["table_cell_alt"])
+            tc = TableCell(stylename=cell_style)
+            cell_p = _p("AC_TableHeaderText" if is_header else "AC_TableText")
             if prefix:
                 cell_p.addText(prefix)
             if is_header:
-                header = _span(STYLE_NAMES["strong"])
                 for child in cell.children:
-                    _render_inline(header, child)
-                cell_p.addElement(header)
+                    _render_inline(cell_p, child)
             else:
                 for child in cell.children:
                     _render_inline(cell_p, child)
