@@ -69,6 +69,7 @@ def _add_paragraph_style(
     font=None,
     first_indent="1.2cm",
     bg=None,
+    color=None,
     ml=None,
     mr=None,
     border_left=None,
@@ -105,6 +106,8 @@ def _add_paragraph_style(
         tp.setAttrNS(FONS, "font-weight", "bold")
     if italic:
         tp.setAttrNS(FONS, "font-style", "italic")
+    if color:
+        tp.setAttrNS(FONS, "color", color)
     style.addElement(tp)
 
     doc.styles.addElement(style)
