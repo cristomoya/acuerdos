@@ -22,7 +22,7 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 from markdown_it import MarkdownIt
 from odf.namespaces import FONS, TEXTNS
 from odf.opendocument import OpenDocumentText, load
-from odf.style import ParagraphProperties, Style, TextProperties
+from odf.style import ParagraphProperties, Style, TableCellProperties, TextProperties
 from odf.table import Table, TableCell, TableColumn, TableRow
 from odf.text import LineBreak, P, Span
 
@@ -41,6 +41,8 @@ STYLE_NAMES = {
     "quote": "AC_Quote",
     "codeblock": "AC_CodeBlock",
     "rule": "AC_Rule",
+    "table_cell": "AC_TableCell",
+    "table_header": "AC_TableHeader",
     "strong": "AC_Strong",
     "em": "AC_Emphasis",
     "code": "AC_InlineCode",
@@ -142,6 +144,36 @@ def _add_text_style(
     doc.styles.addElement(style)
 
 
+def _add_table_cell_style(
+    doc,
+    name,
+    *,
+    bg=None,
+    border="0.5pt solid #d0d7de",
+    padding="0.12cm",
+    bold=False,
+):
+    style = Style(name=name, family="table-cell")
+    cp = TableCellProperties()
+    if bg:
+        cp.setAttrNS(FONS, "background-color", bg)
+    if border:
+        cp.setAttrNS(FONS, "border", border)
+    if padding:
+        cp.setAttrNS(FONS, "padding", padding)
+    cp.setAttrNS(FONS, "vertical-align", "middle")
+    style.addElement(cp)
+
+    tp = TextProperties()
+    tp.setAttrNS(FONS, "font-family", FONT_BODY)
+    tp.setAttrNS(FONS, "font-size", "10pt")
+    if bold:
+        tp.setAttrNS(FONS, "font-weight", "bold")
+    style.addElement(tp)
+
+    doc.styles.addElement(style)
+
+
 def _apply_common_styles(doc, *, title1_size, title2_size, title3_size, body_align, body_indent, body_lineheight, list_align, list_indent, list_left_margin):
     _add_paragraph_style(
         doc,
@@ -230,12 +262,13 @@ def _apply_common_styles(doc, *, title1_size, title2_size, title3_size, body_ali
         STYLE_NAMES["quote"],
         size="10pt",
         align=body_align,
-        mt="0.05cm",
-        mb="0.15cm",
+        mt="0.08cm",
+        mb="0.18cm",
         lineheight=body_lineheight,
-        first_indent=body_indent,
-        border_left="0.08cm solid #999999",
-        padding_left="0.2cm",
+        first_indent=None,
+        bg="#f7faff",
+        border_left="0.1cm solid #cbd5e1",
+        padding_left="0.28cm",
     )
     _add_paragraph_style(
         doc,
@@ -265,6 +298,8 @@ def _apply_common_styles(doc, *, title1_size, title2_size, title3_size, body_ali
     _add_text_style(doc, STYLE_NAMES["code"], font=FONT_CODE, bg="#f5f5f5")
     _add_text_style(doc, STYLE_NAMES["link"], color="#1a5fb4", underline=True)
     _add_text_style(doc, STYLE_NAMES["strike"], strike=True)
+    _add_table_cell_style(doc, STYLE_NAMES["table_cell"], bg="#ffffff", border="0.5pt solid #d0d7de", padding="0.12cm")
+    _add_table_cell_style(doc, STYLE_NAMES["table_header"], bg="#eef4ff", border="0.6pt solid #b7c7e6", padding="0.12cm", bold=True)
 
 
 def _apply_all_styles_oficial(doc):
@@ -476,11 +511,12 @@ def _render_table(doc, node, *, prefix=""):
     for row_cells in rows:
         tr = TableRow()
         for cell in row_cells:
-            tc = TableCell()
+            is_header = cell.name.lower() == "th"
+            tc = TableCell(stylename=STYLE_NAMES["table_header"] if is_header else STYLE_NAMES["table_cell"])
             cell_p = _p(STYLE_NAMES["body"])
             if prefix:
                 cell_p.addText(prefix)
-            if cell.name.lower() == "th":
+            if is_header:
                 header = _span(STYLE_NAMES["strong"])
                 for child in cell.children:
                     _render_inline(header, child)
@@ -565,15 +601,27 @@ def _render_block(doc, node, *, level=0, prefix=""):
         return
 
     if name == "blockquote":
-        quote_prefix = prefix + "> "
-        rendered_any = False
-        for child in node.children:
-            if isinstance(child, NavigableString) and not child.strip():
+        children = [child for child in node.children if not (isinstance(child, NavigableString) and not child.strip())]
+        if not children:
+            return
+        first = True
+        for child in children:
+            child_prefix = prefix + ("Nota: " if first else "")
+            first = False
+            if isinstance(child, Tag) and child.name.lower() in {"ul", "ol"}:
+                _render_block(doc, child, level=level, prefix=child_prefix)
                 continue
-            rendered_any = True
-            _render_block(doc, child, level=level, prefix=quote_prefix)
-        if not rendered_any:
-            _render_paragraph(doc, node, style_name=STYLE_NAMES["quote"], prefix=quote_prefix)
+            if isinstance(child, Tag) and child.name.lower() == "p":
+                _render_paragraph(doc, child, style_name=STYLE_NAMES["quote"], prefix=child_prefix)
+                continue
+            if isinstance(child, Tag) and child.name.lower() == "pre":
+                _render_pre(doc, child, prefix=child_prefix)
+                continue
+            p = _p(STYLE_NAMES["quote"])
+            if child_prefix:
+                p.addText(child_prefix)
+            _render_inline(p, child)
+            doc.text.addElement(p)
         return
 
     if name == "hr":
