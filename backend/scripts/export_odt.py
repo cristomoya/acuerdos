@@ -333,23 +333,22 @@ def _apply_common_styles(doc, *, title1_size, title2_size, title3_size, body_ali
     _add_text_style(doc, STYLE_NAMES["code"], font=FONT_CODE, bg="#f5f5f5")
     _add_text_style(doc, STYLE_NAMES["link"], color="#1a5fb4", underline=True)
     _add_text_style(doc, STYLE_NAMES["strike"], strike=True)
-   _add_table_cell_style(
-    doc,
+    _add_table_cell_style(doc,
     STYLE_NAMES["table_cell"],
     bg="#ffffff",
     border="0.4pt solid #a0a0a0",
     padding="0.10cm"
-)
+    )
 
-_add_table_cell_style(
+    _add_table_cell_style(
     doc,
     STYLE_NAMES["table_cell_alt"],
     bg="#f7f7f7",
     border="0.4pt solid #a0a0a0",
     padding="0.10cm"
-)
+    )
 
-_add_table_cell_style(
+    _add_table_cell_style(
     doc,
     STYLE_NAMES["table_header"],
     bg="#4a4a4a",
@@ -357,7 +356,7 @@ _add_table_cell_style(
     padding="0.12cm",
     bold=True,
     color="#ffffff"
-)
+    )
 
 
 def _apply_all_styles_oficial(doc):
