@@ -64,7 +64,7 @@ def _add_paragraph_style(
     italic=False,
     align="justify",
     mb="0.2cm",
-    mt="0cm",
+    mt="0.2cm",
     lineheight="140%",
     font=None,
     first_indent="1.2cm",
@@ -333,11 +333,31 @@ def _apply_common_styles(doc, *, title1_size, title2_size, title3_size, body_ali
     _add_text_style(doc, STYLE_NAMES["code"], font=FONT_CODE, bg="#f5f5f5")
     _add_text_style(doc, STYLE_NAMES["link"], color="#1a5fb4", underline=True)
     _add_text_style(doc, STYLE_NAMES["strike"], strike=True)
-    _add_table_cell_style(doc, STYLE_NAMES["table_cell"], bg="#ffffff", border="0.6pt solid #cbd5e1", padding="0.14cm")
-    _add_table_cell_style(doc, STYLE_NAMES["table_cell_alt"], bg="#f8fbff", border="0.6pt solid #cbd5e1", padding="0.14cm")
-    _add_table_cell_style(doc, STYLE_NAMES["table_header"], bg="#1d4ed8", border="0.8pt solid #1e40af", padding="0.16cm", bold=True, color="#ffffff")
-    _add_table_paragraph_style(doc, "AC_TableText")
-    _add_table_paragraph_style(doc, "AC_TableHeaderText", bold=True, bg="#1d4ed8", color="#ffffff")
+   _add_table_cell_style(
+    doc,
+    STYLE_NAMES["table_cell"],
+    bg="#ffffff",
+    border="0.4pt solid #a0a0a0",
+    padding="0.10cm"
+)
+
+_add_table_cell_style(
+    doc,
+    STYLE_NAMES["table_cell_alt"],
+    bg="#f7f7f7",
+    border="0.4pt solid #a0a0a0",
+    padding="0.10cm"
+)
+
+_add_table_cell_style(
+    doc,
+    STYLE_NAMES["table_header"],
+    bg="#4a4a4a",
+    border="0.6pt solid #4a4a4a",
+    padding="0.12cm",
+    bold=True,
+    color="#ffffff"
+)
 
 
 def _apply_all_styles_oficial(doc):
