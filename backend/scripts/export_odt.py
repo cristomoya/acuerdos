@@ -20,7 +20,7 @@ from typing import Optional
 
 from bs4 import BeautifulSoup, NavigableString, Tag
 from markdown_it import MarkdownIt
-from odf.namespaces import FONS, TEXTNS
+from odf.namespaces import FONS, STYLENS, TEXTNS
 from odf.opendocument import OpenDocumentText, load
 from odf.style import ParagraphProperties, Style, TableCellProperties, TextProperties
 from odf.table import Table, TableCell, TableColumn, TableRow
@@ -44,6 +44,8 @@ STYLE_NAMES = {
     "table_cell": "AC_TableCell",
     "table_cell_alt": "AC_TableCellAlt",
     "table_header": "AC_TableHeader",
+    "table_text": "AC_TableText",
+    "table_header_text": "AC_TableHeaderText",
     "strong": "AC_Strong",
     "em": "AC_Emphasis",
     "code": "AC_InlineCode",
@@ -83,8 +85,8 @@ def _add_paragraph_style(
     pp.setAttrNS(FONS, "margin-bottom", mb)
     pp.setAttrNS(FONS, "margin-top", mt)
     pp.setAttrNS(FONS, "line-height", lineheight)
-    if first_indent:
-        pp.setAttrNS(FONS, "text-indent", first_indent)
+    # Siempre setear text-indent explícitamente para evitar herencia del estilo padre
+    pp.setAttrNS(FONS, "text-indent", first_indent if first_indent else "0cm")
     if ml:
         pp.setAttrNS(FONS, "margin-left", ml)
     if mr:
@@ -153,8 +155,8 @@ def _add_table_cell_style(
     name,
     *,
     bg=None,
-    border="0.5pt solid #d0d7de",
-    padding="0.12cm",
+    border="0.4pt solid #a0a0a0",
+    padding="0.10cm",
     bold=False,
     color=None,
 ):
@@ -162,17 +164,17 @@ def _add_table_cell_style(
     cp = TableCellProperties()
     if bg:
         cp.setAttrNS(FONS, "background-color", bg)
-    if border:
-        cp.setAttrNS(FONS, "border", border)
-        cp.setAttrNS(FONS, "border-left", border)
-        cp.setAttrNS(FONS, "border-right", border)
-        cp.setAttrNS(FONS, "border-top", border)
-        cp.setAttrNS(FONS, "border-bottom", border)
-    if padding:
-        cp.setAttrNS(FONS, "padding", padding)
+    # Bordes explícitos en los 4 lados para que sean visibles sin huecos
+    cp.setAttrNS(FONS, "border-top",    border)
+    cp.setAttrNS(FONS, "border-bottom", border)
+    cp.setAttrNS(FONS, "border-left",   border)
+    cp.setAttrNS(FONS, "border-right",  border)
+    cp.setAttrNS(FONS, "padding-top",    padding)
+    cp.setAttrNS(FONS, "padding-bottom", padding)
+    cp.setAttrNS(FONS, "padding-left",   padding)
+    cp.setAttrNS(FONS, "padding-right",  padding)
     cp.setAttrNS(FONS, "vertical-align", "middle")
     style.addElement(cp)
-
     tp = TextProperties()
     tp.setAttrNS(FONS, "font-family", FONT_BODY)
     tp.setAttrNS(FONS, "font-size", "10pt")
@@ -181,18 +183,11 @@ def _add_table_cell_style(
     if color:
         tp.setAttrNS(FONS, "color", color)
     style.addElement(tp)
+    doc.automaticstyles.addElement(style)
 
-    doc.styles.addElement(style)
 
-
-def _add_table_paragraph_style(
-    doc,
-    name,
-    *,
-    bold=False,
-    bg=None,
-    color=None,
-):
+def _add_table_paragraph_style(doc, name, *, bold=False, bg=None, color=None):
+    """Estilo de párrafo para celdas de tabla: sin sangría, sin espaciado."""
     _add_paragraph_style(
         doc,
         name,
@@ -203,7 +198,7 @@ def _add_table_paragraph_style(
         mt="0cm",
         lineheight="120%",
         font=FONT_BODY,
-        first_indent=None,
+        first_indent=None,   # se convierte en "0cm" gracias al fix en _add_paragraph_style
         bg=bg,
         color=color,
     )
@@ -333,29 +328,39 @@ def _apply_common_styles(doc, *, title1_size, title2_size, title3_size, body_ali
     _add_text_style(doc, STYLE_NAMES["code"], font=FONT_CODE, bg="#f5f5f5")
     _add_text_style(doc, STYLE_NAMES["link"], color="#1a5fb4", underline=True)
     _add_text_style(doc, STYLE_NAMES["strike"], strike=True)
-    _add_table_cell_style(doc,
-    STYLE_NAMES["table_cell"],
-    bg="#ffffff",
-    border="0.4pt solid #a0a0a0",
-    padding="0.10cm"
+
+    # Estilos de celda
+    _add_table_cell_style(
+        doc,
+        STYLE_NAMES["table_cell"],
+        bg="#ffffff",
+        border="0.4pt solid #a0a0a0",
+        padding="0.10cm",
+    )
+    _add_table_cell_style(
+        doc,
+        STYLE_NAMES["table_cell_alt"],
+        bg="#f7f7f7",
+        border="0.4pt solid #a0a0a0",
+        padding="0.10cm",
+    )
+    _add_table_cell_style(
+        doc,
+        STYLE_NAMES["table_header"],
+        bg="#41a2bb",
+        border="0.6pt solid #4a4a4a",
+        padding="0.12cm",
+        bold=True,
+        color="#ffffff",
     )
 
-    _add_table_cell_style(
-    doc,
-    STYLE_NAMES["table_cell_alt"],
-    bg="#f7f7f7",
-    border="0.4pt solid #a0a0a0",
-    padding="0.10cm"
-    )
-
-    _add_table_cell_style(
-    doc,
-    STYLE_NAMES["table_header"],
-    bg="#41a2bb",
-    border="0.6pt solid #4a4a4a",
-    padding="0.12cm",
-    bold=True,
-    color="#ffffff"
+    # Estilos de párrafo dentro de celdas: sin sangría, sin espaciado
+    _add_table_paragraph_style(doc, STYLE_NAMES["table_text"])
+    _add_table_paragraph_style(
+        doc,
+        STYLE_NAMES["table_header_text"],
+        bold=True,
+        color="#ffffff",
     )
 
 
@@ -569,17 +574,22 @@ def _render_table(doc, node, *, prefix=""):
         tr = TableRow()
         for cell in row_cells:
             is_header = cell.name.lower() == "th"
-            cell_style = STYLE_NAMES["table_header"] if is_header else (STYLE_NAMES["table_cell"] if row_idx % 2 == 0 else STYLE_NAMES["table_cell_alt"])
+            if is_header:
+                cell_style = STYLE_NAMES["table_header"]
+                para_style = STYLE_NAMES["table_header_text"]
+            elif row_idx % 2 == 0:
+                cell_style = STYLE_NAMES["table_cell"]
+                para_style = STYLE_NAMES["table_text"]
+            else:
+                cell_style = STYLE_NAMES["table_cell_alt"]
+                para_style = STYLE_NAMES["table_text"]
+
             tc = TableCell(stylename=cell_style)
-            cell_p = _p("AC_TableHeaderText" if is_header else "AC_TableText")
+            cell_p = _p(para_style)
             if prefix:
                 cell_p.addText(prefix)
-            if is_header:
-                for child in cell.children:
-                    _render_inline(cell_p, child)
-            else:
-                for child in cell.children:
-                    _render_inline(cell_p, child)
+            for child in cell.children:
+                _render_inline(cell_p, child)
             tc.addElement(cell_p)
             tr.addElement(tc)
         table.addElement(tr)
