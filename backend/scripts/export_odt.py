@@ -351,7 +351,7 @@ def _apply_common_styles(doc, *, title1_size, title2_size, title3_size, body_ali
     _add_table_cell_style(
     doc,
     STYLE_NAMES["table_header"],
-    bg="#4a4a4a",
+    bg="#41a2bb",
     border="0.6pt solid #4a4a4a",
     padding="0.12cm",
     bold=True,
