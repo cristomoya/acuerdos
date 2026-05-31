@@ -147,6 +147,8 @@ async function initApp() {
   await Promise.all([loadCats(), loadTpls(), loadGlobalFields()]);
   await loadModels();
   renderMacroCode([]);
+  window._iaToken = token;
+  if (typeof iaInit === 'function') iaInit();
 }
 
 document.getElementById('e-body').addEventListener('keyup', function(e) {
@@ -1645,7 +1647,7 @@ function switchTab(t) {
   if (t==='cats')   renderCatsTab();
   if (t==='tpls')   renderTplsTab();
   if (t==='users')  renderUsersTab();
-  if (t==='campos') loadAnalisisCampos();
+  if (t==='campos') { loadAnalisisCampos(); _showAdminRenameCard(); }
 }
 
 let _analisisCamposData = [];
@@ -1857,3 +1859,38 @@ document.addEventListener('paste', function(e) {
 
 // "?"?"? BOOT "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
 initApp();
+// ─── ADMIN: reemplazo automático de campos ───────────────────────────────────
+
+function _showAdminRenameCard() {
+  const card = document.getElementById('admin-rename-card');
+  if (card && me && me.rol === 'admin') card.style.display = '';
+}
+
+async function migrarCamposContratacion() {
+  const res = document.getElementById('migrar-resultado');
+  res.textContent = 'Aplicando…';
+  res.style.color = 'var(--text3)';
+  const data = await api('POST', '/admin/migrar-campos', {});
+  if (!data) { res.textContent = 'Error al migrar'; res.style.color = 'var(--red)'; return; }
+  const total = Object.values(data.sustitucionesRealizadas || {}).reduce((a, b) => a + b, 0);
+  res.textContent = total
+    ? `✓ ${total} sustitución(es) en ${data.modelos_total} modelo(s)`
+    : '✓ Sin cambios pendientes';
+  res.style.color = 'var(--green)';
+  loadAnalisisCampos();
+}
+
+async function renameCampo() {
+  const oldV = (document.getElementById('rename-old')?.value || '').trim().toUpperCase();
+  const newV = (document.getElementById('rename-new')?.value || '').trim().toUpperCase();
+  const res  = document.getElementById('rename-resultado');
+  if (!oldV || !newV) { res.textContent = 'Introduce ambos nombres.'; res.style.color = 'var(--amber)'; return; }
+  res.textContent = 'Procesando…'; res.style.color = 'var(--text3)';
+  const data = await api('POST', '/admin/rename-campo', { old: oldV, new: newV });
+  if (!data) { res.textContent = 'Error al renombrar.'; res.style.color = 'var(--red)'; return; }
+  res.textContent = data.actualizados
+    ? `✓ ${data.actualizados} modelo(s) actualizados: {{${data.from}}} → {{${data.to}}}`
+    : `Sin ocurrencias de {{${data.from}}} en ningún modelo.`;
+  res.style.color = data.actualizados ? 'var(--green)' : 'var(--text3)';
+  if (data.actualizados) loadAnalisisCampos();
+}

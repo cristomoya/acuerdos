@@ -15,6 +15,7 @@ services:
       FILES_DIR: /data/carpetas
       TEMPLATES_DIR: /data/plantillas
       JWT_SECRET: ${JWT_SECRET:-cambia-este-secreto-en-produccion}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
     volumes:
       - acuerdos-data:/data
       - ${CARPETAS_PATH:-./carpetas}:/data/carpetas
@@ -34,12 +35,14 @@ services:
       dockerfile: frontend/Dockerfile
     container_name: acuerdos-frontend
     restart: unless-stopped
+    ports:
+      - "9080:80"
     depends_on:
       backend:
         condition: service_healthy
     networks:
       - internal
-      - traefik-net
+     
     labels:
       - traefik.enable=true
       - traefik.http.routers.modelos.rule=Host(`modelos.cristobalmoyalopez.es`)
@@ -58,5 +61,4 @@ volumes:
 networks:
   internal:
     driver: bridge
-  traefik-net:
-    external: true
+  

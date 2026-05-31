@@ -1,6 +1,7 @@
 
 <!DOCTYPE html>
 <html lang="es">
+  <!-- boton IA colocado correctamente -->
 <head>
   <meta charset="UTF-8"/>
   <meta http-equiv="Cache-Control" content="no-transform"/>
@@ -276,6 +277,242 @@
   /* Scroll sutil en el contenedor de campos */
   #ef-campos::-webkit-scrollbar { width: 5px; }
   #ef-campos::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+/* ═══════════════════════════════════════════════════════════════════
+   IA GENERATOR — CSS depurado (sin duplicados)
+   Pegar dentro del <style> existente en index.html,
+   reemplazando TODOS los bloques CSS de IA anteriores.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Botón IA ── */
+.btn-ia {
+  background: linear-gradient(135deg, #6C3FC5 0%, #185FA5 100%);
+  color: #fff;
+  border-color: transparent;
+  position: relative;
+  overflow: hidden;
+}
+.btn-ia:hover { background: linear-gradient(135deg, #5930A8 0%, #0C447C 100%); color: #fff; }
+.btn-ia::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.08);
+  opacity: 0;
+  transition: opacity .15s;
+}
+.btn-ia:hover::after { opacity: 1; }
+
+/* ── Modal IA ── */
+.ia-modal {
+  width: 700px;
+  max-width: 96vw;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Stepper ── */
+.ia-stepper {
+  display: flex;
+  align-items: center;
+  padding: 14px 0 12px;
+  border-bottom: 0.5px solid var(--border);
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+.ia-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border2);
+  background: var(--surface2);
+  color: var(--text3);
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all .2s;
+}
+.ia-dot-active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+  box-shadow: 0 0 0 3px var(--blue-bg);
+}
+.ia-dot-done {
+  background: var(--green-bg);
+  border-color: var(--green);
+  color: var(--green);
+  font-size: 13px;
+}
+.ia-step-label { font-size: 11px; color: var(--text3); margin: 0 8px 0 5px; white-space: nowrap; }
+.ia-step-label.active { color: var(--blue); font-weight: 600; }
+.ia-connector { flex: 1; height: 1px; background: var(--border); margin: 0 4px; }
+
+/* ── Pasos ── */
+.ia-step {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+/* ── Dropzone ── */
+.ia-dropzone {
+  border: 2px dashed var(--border2);
+  border-radius: var(--rl);
+  padding: 20px 18px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .15s;
+  background: var(--surface2);
+}
+.ia-dropzone:hover,
+.ia-dropzone.dragover { border-color: var(--blue); background: var(--blue-bg); }
+.ia-dropzone.loaded   { border-color: var(--green); background: var(--green-bg); }
+.ia-dropzone-ico      { font-size: 28px; margin-bottom: 6px; }
+.ia-dropzone-label    { font-size: 13px; color: var(--text2); font-weight: 500; }
+.ia-dropzone-hint     { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+/* ── Lista de archivos ── */
+.ia-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.ia-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  background: var(--surface2);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r);
+  font-size: 12px;
+}
+.ia-file-ico  { font-size: 14px; flex-shrink: 0; }
+.ia-file-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.ia-file-size { font-size: 11px; color: var(--text3); flex-shrink: 0; }
+.ia-file-rm   { border: none; background: none; cursor: pointer; color: var(--text3); font-size: 12px; padding: 0 2px; flex-shrink: 0; transition: color .1s; }
+.ia-file-rm:hover { color: var(--red); }
+#ia-archivo-count { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+/* ── Preview texto PDF ── */
+.ia-preview-box {
+  background: var(--surface2);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  font-family: 'Cascadia Code','Fira Code','Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--text2);
+  max-height: 180px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ia-preview-box::-webkit-scrollbar       { width: 4px; }
+.ia-preview-box::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ── Firmas detectadas ── */
+.ia-firma-card {
+  font-size: 12px;
+  padding: 6px 10px;
+  background: var(--blue-bg);
+  border: 0.5px solid var(--blue-mid);
+  border-radius: var(--r);
+  margin-bottom: 4px;
+  color: var(--blue);
+  line-height: 1.5;
+}
+
+/* ── Badges ── */
+.ia-badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--surface2);
+  border: 0.5px solid var(--border);
+  color: var(--text2);
+  margin-right: 4px;
+  margin-bottom: 2px;
+}
+.ia-badge-blue  { background: var(--blue-bg);  border-color: var(--blue-mid); color: var(--blue); }
+.ia-badge-green { background: var(--green-bg); border-color: #C0DD97;         color: var(--green); }
+
+/* ── Spinner ── */
+.ia-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: ia-spin .7s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+@keyframes ia-spin    { to { transform: rotate(360deg); } }
+@keyframes ia-fadein  { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ── Loading ── */
+.ia-loading-msg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 0;
+  color: var(--text2);
+  font-size: 13px;
+}
+.ia-progress-steps { display: flex; flex-direction: column; gap: 5px; padding: 6px 0; }
+.ia-progress-step  { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text3); animation: ia-fadein .4s ease both; }
+.ia-progress-step.active { color: var(--blue);  font-weight: 500; }
+.ia-progress-step.done   { color: var(--green); }
+
+/* ── Resultado textarea ── */
+.ia-result-ta {
+  width: 100%;
+  min-height: 260px;
+  font-family: 'Cascadia Code','Fira Code','Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  padding: 12px;
+  border: 0.5px solid var(--border2);
+  border-radius: var(--r);
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+.ia-result-ta:focus { border-color: var(--blue); }
+
+/* ── Advertencia legal ── */
+.ia-aviso {
+  background: var(--amber-bg);
+  border: 0.5px solid #F5C97A;
+  border-radius: var(--r);
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--amber);
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+/* ── Selector plantilla ── */
+.ia-plantilla-row         { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.ia-plantilla-row label   { font-size: 11px; color: var(--text2); white-space: nowrap; flex-shrink: 0; }
+.ia-plantilla-row select  { flex: 1; font-size: 12px; }
 
   </style>
 </head>
@@ -320,7 +557,6 @@
     <div class="tab hidden" id="tab-u-btn" onclick="switchTab('users')">Usuarios</div>
   </div>
 
-  <!-- ══ EDITOR TAB ══ -->
   <div class="abody" id="tab-editor">
     <!-- sidebar -->
     <div class="sidebar">
@@ -359,7 +595,12 @@
             <div class="etitle" id="e-title">—</div>
             <div class="emeta" id="e-meta">—</div>
           </div>
+           <!-- Y añadir justo después: -->
+          <button class="btn btn-sm btn-ia" id="btn-ia" onclick="abrirModalIA() "title="Generar acuerdo desde PDF con IA" style="display:none">✨ Generar IA</button>
+
+
           <button class="btn btn-sm" id="btn-save" onclick="saveModel()">💾 Guardar</button>
+          <button class="btn btn-sm btn-ia" id="btn-ia" onclick="abrirModalIA()"title="Generar acuerdo desde PDF con IA" style="display:none">✨ Generar IA</button>
           <button class="btn btn-sm" id="btn-styles" onclick="openStylesEditor()">⚙ Estilos</button>
           <button class="btn btn-sm" id="btn-versions" onclick="openVersions()">🕘 Historial</button>
           <button class="btn btn-sm" onclick="openQuickPreview()">👁 Vista previa</button>
@@ -514,6 +755,42 @@
             <input type="text" id="campos-search" placeholder="Buscar campo o nombre…" oninput="filterAnalisisCampos()" style="max-width:320px;font-size:12px"/>
           </div>
           <div id="campos-tabla"><p style="color:var(--text3);font-size:13px">Cargando…</p></div>
+        </div>
+      </div>
+
+      <!-- ── Admin: reemplazo automático de campos ───────────────────────────── -->
+      <div class="card" id="admin-rename-card" style="display:none">
+        <div class="chead">🔁 Reemplazo automático de campos <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px">(solo admin)</span></div>
+        <div class="cbody">
+
+          <!-- Migración masiva -->
+          <div style="background:var(--blue-bg);border-radius:var(--r);padding:12px 14px;margin-bottom:16px">
+            <div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:6px">Migración de nomenclatura de contratación</div>
+            <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
+              Aplica en todos los modelos el mapa de renombrado estándar:<br>
+              <code style="font-size:11px">MUNICIPIO → ORGANISMO</code> &nbsp;·&nbsp;
+              <code style="font-size:11px">NUMERO_EXPEDIENTE → EXPEDIENTE</code> &nbsp;·&nbsp;
+              <code style="font-size:11px">OBJETO_CONTRATO → OBJETO</code> &nbsp;·&nbsp;
+              <code style="font-size:11px">IMPORTE → PRESUPUESTO_BASE</code> &nbsp;·&nbsp;
+              <code style="font-size:11px">FECHA_DECRETO / FECHA_FIRMA → FECHA</code>
+            </p>
+            <button class="btn btn-sm btn-primary" onclick="migrarCamposContratacion()">⚡ Aplicar migración masiva</button>
+            <span id="migrar-resultado" style="font-size:12px;color:var(--green);margin-left:10px"></span>
+          </div>
+
+          <!-- Renombrado individual -->
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">Renombrar un campo individual</div>
+          <p style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6">
+            Sustituye <code style="background:var(--surface2);padding:1px 4px;border-radius:3px">{{CAMPO_ANTIGUO}}</code> por
+            <code style="background:var(--surface2);padding:1px 4px;border-radius:3px">{{CAMPO_NUEVO}}</code> en <strong>todos los modelos</strong>.
+          </p>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input id="rename-old" type="text" placeholder="NOMBRE_ANTIGUO" style="font-size:12px;font-family:monospace;width:180px;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"/>
+            <span style="color:var(--text3);font-size:16px">→</span>
+            <input id="rename-new" type="text" placeholder="NOMBRE_NUEVO" style="font-size:12px;font-family:monospace;width:180px;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"/>
+            <button class="btn btn-sm btn-primary" onclick="renameCampo()">Renombrar</button>
+          </div>
+          <div id="rename-resultado" style="font-size:12px;margin-top:8px"></div>
         </div>
       </div>
     </div>
@@ -788,7 +1065,175 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="overlay" id="m-ia-generator" onclick="if(event.target===this)closeModal('m-ia-generator')">
+  <div class="modal ia-modal">
+ 
+    <!-- Cabecera -->
+    <div class="mhead" style="padding-bottom:0;flex-shrink:0">
+      <div>
+        <h3 style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px">✨</span> Generar acuerdo con IA
+        </h3>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">
+          Sube uno o varios PDFs con los antecedentes · Claude redactará el acuerdo y podrás exportarlo a .odt
+        </div>
+      </div>
+      <span class="mclose" onclick="closeModal('m-ia-generator')">&times;</span>
+    </div>
+ 
+    <!-- Stepper -->
+    <div class="ia-stepper">
+      <div class="ia-dot ia-dot-active" id="ia-dot-1">1</div>
+      <span class="ia-step-label active" id="ia-label-1">Subir PDF(s)</span>
+      <div class="ia-connector"></div>
+      <div class="ia-dot" id="ia-dot-2">2</div>
+      <span class="ia-step-label" id="ia-label-2">Revisar y generar</span>
+      <div class="ia-connector"></div>
+      <div class="ia-dot" id="ia-dot-3">3</div>
+      <span class="ia-step-label" id="ia-label-3">Resultado</span>
+    </div>
+ 
+    <!-- ── STEP 1: Subir PDFs ── -->
+    <div id="ia-step-1" class="ia-step">
+ 
+      <!-- Dropzone -->
+      <div class="ia-dropzone" id="ia-dropzone"
+           onclick="document.getElementById('ia-pdf-file').click()">
+        <div class="ia-dropzone-ico">📄</div>
+        <div class="ia-dropzone-label">
+          Arrastra los PDFs aquí o haz clic para seleccionar
+        </div>
+        <div class="ia-dropzone-hint">
+          Puedes subir varios documentos (informes, solicitudes, resoluciones…) · Máx. 20 MB por archivo
+        </div>
+      </div>
+      <input type="file" id="ia-pdf-file" accept=".pdf,application/pdf" multiple
+             style="display:none" onchange="iaOnFileChange(this)"/>
+ 
+      <!-- Lista de archivos seleccionados -->
+      <div>
+        <div id="ia-archivo-count" style="font-size:11px;color:var(--text3);margin-bottom:4px">Sin archivos</div>
+        <div class="ia-files-list" id="ia-lista-archivos"></div>
+      </div>
+ 
+      <!-- Instrucciones adicionales -->
+      <div class="fg" style="margin:0">
+        <label class="fl">Instrucciones adicionales para la IA (opcional)</label>
+        <textarea id="ia-instrucciones" rows="3"
+          placeholder="Ej: Órgano competente: Junta de Gobierno Local. Enfatizar los plazos de ejecución. Redactar de forma concisa..."
+          style="resize:vertical;font-size:13px;line-height:1.5"></textarea>
+      </div>
+ 
+      <div class="mfoot" style="margin-top:auto;padding-top:10px;border-top:0.5px solid var(--border);flex-shrink:0">
+        <button class="btn btn-sm" onclick="closeModal('m-ia-generator')">Cancelar</button>
+        <button class="btn btn-sm btn-primary" id="ia-btn-extraer"
+                onclick="iaExtraerPDF()" disabled>
+          → Extraer texto
+        </button>
+      </div>
+    </div>
+ 
+    <!-- ── STEP 2: Revisar y generar ── -->
+    <div id="ia-step-2" class="ia-step" style="display:none">
+ 
+      <!-- Badges info -->
+      <div>
+        <div class="ptitle">Documento(s) procesado(s)</div>
+        <div id="ia-pdf-meta"></div>
+      </div>
+ 
+      <!-- Firmas electrónicas detectadas -->
+      <div id="ia-firmas-wrap" style="display:none">
+        <div class="ptitle">Firmas electrónicas detectadas</div>
+        <div id="ia-firmas-lista"></div>
+      </div>
+ 
+      <!-- Preview texto -->
+      <div style="flex:1;min-height:0">
+        <div class="ptitle" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span>Texto extraído (previsualización)</span>
+          <span style="font-size:10px;color:var(--text3)">Se enviará el texto completo a la IA</span>
+        </div>
+        <div class="ia-preview-box" id="ia-pdf-preview"></div>
+      </div>
+ 
+      <!-- Instrucciones (editable) -->
+      <div class="fg" style="margin:0">
+        <label class="fl">Instrucciones adicionales (editables)</label>
+        <textarea id="ia-instrucciones-2" rows="2"
+          style="resize:vertical;font-size:12px;line-height:1.5"
+          placeholder="Deja vacío para usar las del paso anterior"
+          oninput="document.getElementById('ia-instrucciones').value=this.value"></textarea>
+      </div>
+ 
+      <div class="mfoot" style="margin-top:auto;padding-top:10px;border-top:0.5px solid var(--border);flex-shrink:0">
+        <button class="btn btn-sm" onclick="iaVolver(1)">← Volver</button>
+        <button class="btn btn-sm" onclick="closeModal('m-ia-generator')">Cancelar</button>
+        <button class="btn btn-sm btn-ia" id="ia-btn-generar" onclick="iaGenerarAcuerdo()">
+          ✨ Generar acuerdo
+        </button>
+      </div>
+    </div>
+ 
+    <!-- ── STEP 3: Resultado ── -->
+    <div id="ia-step-3" class="ia-step" style="display:none">
+ 
+      <!-- Loading -->
+      <div id="ia-resultado-loading" style="display:none">
+        <div class="ia-loading-msg">
+          <span class="ia-spinner"></span> Claude está redactando el acuerdo...
+        </div>
+        <div class="ia-progress-steps">
+          <div class="ia-progress-step done">✓ Texto extraído del PDF</div>
+          <div class="ia-progress-step done">✓ Firmas y antecedentes procesados</div>
+          <div class="ia-progress-step active">
+            <span class="ia-spinner" style="width:11px;height:11px;border-width:1.5px"></span>
+            Redactando con normativa local (LBRL, LPAC, LRJSP)...
+          </div>
+        </div>
+      </div>
+ 
+      <!-- Resultado -->
+      <div id="ia-resultado-actions" style="display:none;flex:1;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <div>
+            <div class="ptitle" style="margin-bottom:1px">Acuerdo generado</div>
+            <div style="font-size:11px;color:var(--text3)">Revisa y edita antes de usar</div>
+          </div>
+          <span class="ia-badge ia-badge-green">✓ Generado por Claude</span>
+        </div>
+ 
+        <textarea class="ia-result-ta" id="ia-resultado" style="flex:1"></textarea>
+ 
+        <!-- Selector de plantilla para exportar -->
+        <div class="ia-plantilla-row" style="flex-shrink:0">
+          <label>Plantilla para exportar:</label>
+          <select id="ia-plantilla-select">
+            <option value="">Sin plantilla (estilos por defecto)</option>
+          </select>
+        </div>
+ 
+        <div class="ia-aviso" style="flex-shrink:0">
+          ⚠️ <strong>Revisión obligatoria:</strong> El texto generado por IA debe ser
+          validado por el técnico o secretario competente antes de su uso oficial.
+        </div>
+      </div>
+ 
+      <div class="mfoot" style="margin-top:auto;padding-top:10px;border-top:0.5px solid var(--border);flex-shrink:0;flex-wrap:wrap;gap:6px">
+        <button class="btn btn-sm" onclick="iaVolver(2)">← Volver</button>
+        <button class="btn btn-sm" onclick="iaCopiarTexto()" title="Copiar Markdown al portapapeles">📋 Copiar</button>
+        <button class="btn btn-sm btn-success" onclick="iaAnadirAlEditor()">+ Añadir al editor</button>
+        <button class="btn btn-sm btn-primary" onclick="iaInsertarEnEditor()">↩ Insertar en editor</button>
+        <button class="btn btn-sm" style="background:var(--teal-bg);color:var(--teal);border-color:#8FD4BE"
+                onclick="iaExportarOdt()">⬇ Exportar .odt</button>
+      </div>
+    </div>
+ 
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script src="/app.js"></script>
+<script src="app.js"></script>
+<script src="ia-generator.js"></script>
 </body>
 </html>

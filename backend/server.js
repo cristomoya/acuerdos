@@ -198,7 +198,40 @@ function seedGlobalFieldCatalog() {
   modelos.forEach(m => syncGlobalFieldsFromModel(m.id, m.cuerpo || ''));
 }
 
+function seedContractFieldCatalog() {
+  const fields = [
+    { clave: 'EXPEDIENTE',          nombre: 'Número / referencia del expediente', tipo: 'texto'   },
+    { clave: 'OBJETO',              nombre: 'Objeto del contrato',                 tipo: 'texto'   },
+    { clave: 'DESCRIPCION',         nombre: 'Descripción del proyecto',            tipo: 'texto'   },
+    { clave: 'ORGANISMO',           nombre: 'Organismo contratante',               tipo: 'texto'   },
+    { clave: 'NIF',                 nombre: 'NIF del organismo',                   tipo: 'texto'   },
+    { clave: 'EMAIL',               nombre: 'Email de contacto',                   tipo: 'texto'   },
+    { clave: 'TELEFONO',            nombre: 'Teléfono de contacto',                tipo: 'texto'   },
+    { clave: 'DIRECCION',           nombre: 'Dirección postal',                    tipo: 'texto'   },
+    { clave: 'TIPO_CONTRATO',       nombre: 'Tipo de contrato',                    tipo: 'lista'   },
+    { clave: 'PROCEDIMIENTO',       nombre: 'Procedimiento de licitación',         tipo: 'lista'   },
+    { clave: 'TRAMITACION',         nombre: 'Tramitación',                         tipo: 'lista'   },
+    { clave: 'CPV',                 nombre: 'Código CPV',                          tipo: 'texto'   },
+    { clave: 'PRESUPUESTO_BASE',    nombre: 'Presupuesto base sin IVA',            tipo: 'importe' },
+    { clave: 'PRESUPUESTO_IVA',     nombre: 'Presupuesto total con IVA',           tipo: 'importe' },
+    { clave: 'VALOR_ESTIMADO',      nombre: 'Valor estimado del contrato',         tipo: 'importe' },
+    { clave: 'PLAZO',               nombre: 'Plazo de ejecución',                  tipo: 'texto'   },
+    { clave: 'FECHA_PUBLICACION',   nombre: 'Fecha de publicación',                tipo: 'fecha'   },
+    { clave: 'FECHA_LIMITE',        nombre: 'Fecha límite de presentación',        tipo: 'fecha'   },
+    { clave: 'GARANTIA',            nombre: 'Garantía definitiva (%)',             tipo: 'numero'  },
+    { clave: 'ADJUDICATARIO',       nombre: 'Nombre del adjudicatario',            tipo: 'texto'   },
+    { clave: 'NIF_ADJUDICATARIO',   nombre: 'NIF del adjudicatario',               tipo: 'texto'   },
+    { clave: 'IMPORTE_ADJUDICACION',nombre: 'Importe de adjudicación',             tipo: 'importe' },
+    { clave: 'FECHA_ADJUDICACION',  nombre: 'Fecha de adjudicación',               tipo: 'fecha'   },
+    { clave: 'FINANCIACION_UE',     nombre: 'Programa de financiación UE',         tipo: 'texto'   },
+    { clave: 'SERIE_DOCUMENTAL',    nombre: 'Serie documental',                    tipo: 'texto'   },
+    { clave: 'FECHA',               nombre: 'Fecha del documento',                 tipo: 'fecha'   },
+  ];
+  fields.forEach(f => syncGlobalField(f.clave, { nombre: f.nombre, tipo: f.tipo }));
+}
+
 seedGlobalFieldCatalog();
+seedContractFieldCatalog();
 
 // ??? SEED ?????????????????????????????????????????????????????????????????????
 const userCount = db.prepare('SELECT COUNT(*) as n FROM users').get();
@@ -226,17 +259,17 @@ if (catCount.n === 0) {
     [1, 'Acuerdo de Pleno - Aprobacin de Presupuesto', 'activo',
      'Modelo para aprobacin de presupuesto municipal en sesion plenaria ordinaria.',
      '["presupuesto","pleno","hacienda"]',
-     `# ACUERDO DE PLENO - {{MUNICIPIO}}
+     `# ACUERDO DE PLENO - {{ORGANISMO}}
 
 ## Sesin N. {{NUMERO_SESION}}
 
-En **{{MUNICIPIO}}**, siendo las doce horas del da {{FECHA_SESION}}, bajo la presidencia del Alcalde **{{ALCALDE_NOMBRE}}**, y con asistencia del Secretario **{{SECRETARIO_NOMBRE}}**, se rene en sesion ordinaria el Pleno del Ayuntamiento.
+En **{{ORGANISMO}}**, siendo las doce horas del da {{FECHA_SESION}}, bajo la presidencia del Alcalde **{{ALCALDE_NOMBRE}}**, y con asistencia del Secretario **{{SECRETARIO_NOMBRE}}**, se rene en sesion ordinaria el Pleno del Ayuntamiento.
 
-**EXPEDIENTE NM. {{NUMERO_EXPEDIENTE}}**
+**EXPEDIENTE NM. {{EXPEDIENTE}}**
 
 Visto el informe del departamento de {{DEPARTAMENTO}} relativo al ejercicio {{EJERCICIO_PRESUPUESTARIO}}, y habiendo sido sometido a votacin con resultado {{VOTACION_RESULTADO}}, el Pleno Municipal acuerda:
 
-**PRIMERO.** Aprobar el presupuesto municipal por importe de {{IMPORTE}} euros para {{CONCEPTO}}.
+**PRIMERO.** Aprobar el presupuesto municipal por importe de {{PRESUPUESTO_BASE}} euros para {{OBJETO}}.
 
 **SEGUNDO.** Proceder a su publicacin en el BOP el {{FECHA_PUBLICACION}}.
 
@@ -251,17 +284,19 @@ Lo que se hace constar para los oportunos efectos.
      '["contratacion","decreto"]',
      `# DECRETO DE ALCALDA N. {{NUMERO_DECRETO}}
 
-En **{{MUNICIPIO}}**, a {{FECHA_DECRETO}}.
+En **{{ORGANISMO}}**, a {{FECHA}}.
 
 El Alcalde-Presidente, **{{ALCALDE_NOMBRE}}**, en uso de las atribuciones que le confiere la legislacin vigente,
 
 ## RESUELVE
 
-**PRIMERO.** Aprobar el inicio del expediente de contratacion para **{{OBJETO_CONTRATO}}** con presupuesto base de licitacion de {{IMPORTE}} euros.
+**PRIMERO.** Aprobar el inicio del expediente de contratacion **{{EXPEDIENTE}}** para **{{OBJETO}}** con presupuesto base de licitacion de {{PRESUPUESTO_BASE}} euros (IVA no incluido), siendo el presupuesto total con IVA de {{PRESUPUESTO_IVA}} euros.
 
-**SEGUNDO.** Autorizar el gasto con cargo a la partida presupuestaria {{PARTIDA_PRESUPUESTARIA}}.
+**SEGUNDO.** El tipo de contrato es {{TIPO_CONTRATO}}, tramitado por procedimiento {{PROCEDIMIENTO}} con tramitacin {{TRAMITACION}}.
 
-**TERCERO.** Contra la presente resolucin podr interponerse recurso de reposicin en el plazo de un mes.
+**TERCERO.** Autorizar el gasto con cargo a la partida presupuestaria {{PARTIDA_PRESUPUESTARIA}}.
+
+**CUARTO.** Contra la presente resolucin podr interponerse recurso de reposicin en el plazo de un mes.
 
 ---
 
@@ -271,19 +306,21 @@ El Alcalde - {{ALCALDE_NOMBRE}}`],
      '["convenio","colaboracion"]',
      `# CONVENIO DE COLABORACIN
 
-Entre el **Ayuntamiento de {{MUNICIPIO}}**, representado por {{ALCALDE_NOMBRE}}, y **{{ENTIDAD_COLABORADORA}}**, representada por {{REPRESENTANTE_ENTIDAD}}.
+Entre el **{{ORGANISMO}}**, representado por {{ALCALDE_NOMBRE}}, y **{{ENTIDAD_COLABORADORA}}**, representada por {{REPRESENTANTE_ENTIDAD}}.
+
+**Expediente:** {{EXPEDIENTE}}
 
 ## CLUSULAS
 
-**PRIMERA.** El objeto del presente convenio es {{OBJETO_CONVENIO}}.
+**PRIMERA.** El objeto del presente convenio es {{OBJETO}}.
 
 **SEGUNDA.** La vigencia ser desde {{FECHA_INICIO}} hasta {{FECHA_FIN}}.
 
-**TERCERA.** La aportacin del Ayuntamiento ser de {{IMPORTE}} euros.
+**TERCERA.** La aportacin del {{ORGANISMO}} ser de {{PRESUPUESTO_BASE}} euros.
 
 ---
 
-En {{MUNICIPIO}}, a {{FECHA_FIRMA}}.
+En {{ORGANISMO}}, a {{FECHA}}.
 
 - El Alcalde: {{ALCALDE_NOMBRE}}
 - El Representante: {{REPRESENTANTE_ENTIDAD}}`],
@@ -1056,21 +1093,316 @@ app.get('/api/analisis-campos', auth, role('admin', 'editor'), (req, res) => {
   res.json({ total_campos: resultado.length, total_modelos: modelos.length, campos: resultado });
 });
 
-app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '3.1.0' }));
+// POST /api/admin/rename-campo  { old: 'MUNICIPIO', new: 'ORGANISMO' }
+app.post('/api/admin/rename-campo', auth, role('admin'), (req, res) => {
+  const { old: oldCampo, new: newCampo } = req.body || {};
+  if (!oldCampo || !newCampo) return res.status(400).json({ error: 'Faltan old y new' });
+  const from = String(oldCampo).trim().toUpperCase();
+  const to   = String(newCampo).trim().toUpperCase();
+  if (from === to) return res.json({ actualizados: 0, mensaje: 'Los campos son iguales' });
 
-app.listen(PORT, () => console.log(`Acuerdos API v3 - puerto ${PORT}`));
-//---duplicar--------------------
+  const re = new RegExp(`\\{\\{${from}\\}\\}`, 'g');
+  const modelos = db.prepare('SELECT id, cuerpo FROM modelos').all();
+  const update  = db.prepare('UPDATE modelos SET cuerpo=?, updated_at=datetime(\'now\') WHERE id=?');
+  const updCT   = db.prepare(`UPDATE campo_tipos SET campo=? WHERE campo=? AND modelo_id=?`);
+
+  let actualizados = 0;
+  db.transaction(() => {
+    for (const m of modelos) {
+      const nuevo = (m.cuerpo || '').replace(re, `{{${to}}}`);
+      if (nuevo !== m.cuerpo) {
+        update.run(nuevo, m.id);
+        updCT.run(to, from, m.id);
+        actualizados++;
+      }
+    }
+    // Actualizar catálogo: si el campo nuevo ya existe preserva el viejo nombre/tipo
+    syncGlobalField(to, {});
+  })();
+
+  res.json({ actualizados, from, to });
+});
+
+// POST /api/admin/migrar-campos  — aplica el mapa completo old→new de contratación
+app.post('/api/admin/migrar-campos', auth, role('admin'), (req, res) => {
+  const mapa = {
+    MUNICIPIO:          'ORGANISMO',
+    NUMERO_EXPEDIENTE:  'EXPEDIENTE',
+    OBJETO_CONTRATO:    'OBJETO',
+    OBJETO_CONVENIO:    'OBJETO',
+    IMPORTE:            'PRESUPUESTO_BASE',
+    FECHA_DECRETO:      'FECHA',
+    FECHA_FIRMA:        'FECHA',
+  };
+
+  const modelos = db.prepare('SELECT id, cuerpo FROM modelos').all();
+  const update  = db.prepare('UPDATE modelos SET cuerpo=?, updated_at=datetime(\'now\') WHERE id=?');
+  const updCT   = db.prepare(`UPDATE campo_tipos SET campo=? WHERE campo=? AND modelo_id=?`);
+
+  const resumen = {};
+  db.transaction(() => {
+    for (const m of modelos) {
+      let cuerpo = m.cuerpo || '';
+      let modificado = false;
+      for (const [from, to] of Object.entries(mapa)) {
+        const re    = new RegExp(`\\{\\{${from}\\}\\}`, 'g');
+        const nuevo = cuerpo.replace(re, `{{${to}}}`);
+        if (nuevo !== cuerpo) {
+          resumen[from] = (resumen[from] || 0) + 1;
+          updCT.run(to, from, m.id);
+          cuerpo = nuevo;
+          modificado = true;
+        }
+      }
+      if (modificado) update.run(cuerpo, m.id);
+    }
+    seedContractFieldCatalog();
+  })();
+
+  res.json({ mapa, sustitucionesRealizadas: resumen, modelos_total: modelos.length });
+});
+
+app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '3.1.0' }));
+// ═══════════════════════════════════════════════════════════════════════════════
+// PARCHE server_ia_patch.js — Generación IA + multi-PDF + export directo ODT
+// Pegar en server.js ANTES de app.listen()
+//
+// Variables de entorno necesarias:
+//   ANTHROPIC_API_KEY=sk-ant-...
+//
+// pip3 install pypdf --break-system-packages  (añadir al Dockerfile)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── MULTER PARA PDFs ─────────────────────────────────────────────────────────
+const pdfUpload = multer({
+  storage: multer.diskStorage({
+    destination: os.tmpdir(),
+    filename: (req, file, cb) => cb(null, `${Date.now()}_${Math.random().toString(36).slice(2)}.pdf`)
+  }),
+  fileFilter: (req, file, cb) => {
+    const ok = /\.pdf$/i.test(file.originalname) || file.mimetype === 'application/pdf';
+    cb(ok ? null : new Error('Solo se permiten PDFs'), ok);
+  },
+  limits: { fileSize: 20 * 1024 * 1024 }
+});
+
+// ─── HELPER: Extraer texto + firmas de varios PDFs ────────────────────────────
+async function _extractPdfData(pdfPaths) {
+  const tmpOut = path.join(os.tmpdir(), `${Date.now()}_extracted.json`);
+  const pythonBin = process.env.PYTHON_BIN || (process.platform === 'win32' ? 'python' : 'python3');
+  const scriptPath = path.join(__dirname, 'scripts/extract_pdf_text.py');
+  const args = [...pdfPaths, tmpOut];
+  try {
+    await new Promise((resolve, reject) => {
+      execFile(pythonBin, [scriptPath, ...args], { timeout: 60000 }, (err, _out, stderr) => {
+        if (err) reject(new Error(stderr || err.message));
+        else resolve();
+      });
+    });
+    return JSON.parse(fs.readFileSync(tmpOut, 'utf8'));
+  } finally {
+    try { fs.unlinkSync(tmpOut); } catch {}
+  }
+}
+
+// ─── HELPER: Llamar a Claude Haiku ────────────────────────────────────────────
+async function _llamarClaude(systemPrompt, userMessage) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY no configurada en el servidor');
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }],
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(`Claude API ${response.status}: ${err.error?.message || 'error desconocido'}`);
+  }
+  const data = await response.json();
+  return data.content?.[0]?.text || '';
+}
+
+// ─── RUTA 1: Extraer texto + firmas de uno o varios PDFs ─────────────────────
+// POST /api/ia/extraer-pdf
+// Campos multipart: "pdfs" (múltiples archivos)
+app.post('/api/ia/extraer-pdf', auth, pdfUpload.array('pdfs', 10), async (req, res) => {
+  const archivos = req.files || [];
+  if (!archivos.length) return res.status(400).json({ error: 'Se requiere al menos un PDF' });
+
+  const pdfPaths = archivos.map(f => f.path);
+  try {
+    const datos = await _extractPdfData(pdfPaths);
+
+    // Normalizar respuesta: si es un solo PDF o varios
+    const esSolo = archivos.length === 1;
+    const texto = esSolo ? datos.texto : datos.texto_combinado;
+    const firmas = esSolo ? (datos.firmas || []) : (datos.firmas_combinadas || []);
+    const paginas = esSolo ? datos.paginas : datos.total_paginas;
+
+    const textoPreview = texto.length > 8000
+      ? texto.slice(0, 8000) + '\n\n[... texto truncado para previsualización ...]'
+      : texto;
+
+    res.json({
+      texto,
+      texto_preview: textoPreview,
+      paginas,
+      firmas,                        // [{ firmante, fecha, nif, rol, fuente, documento? }]
+      documentos: esSolo ? null : datos.documentos,
+      metodo: esSolo ? datos.metodo : 'multi',
+      n_archivos: archivos.length,
+    });
+  } catch (e) {
+    console.error('Error extrayendo PDFs:', e.message);
+    res.status(500).json({ error: 'No se pudo extraer el texto: ' + e.message });
+  } finally {
+    pdfPaths.forEach(p => { try { fs.unlinkSync(p); } catch {} });
+  }
+});
+
+// ─── RUTA 2: Generar acuerdo con IA ──────────────────────────────────────────
+app.post('/api/modelos/:id/generar-ia', auth, async (req, res) => {
+  const modelo = db.prepare(`
+    SELECT m.*, c.nombre as categoria_nombre, c.descripcion as categoria_desc
+    FROM modelos m LEFT JOIN categorias c ON m.categoria_id=c.id WHERE m.id=?
+  `).get(req.params.id);
+  if (!modelo) return res.status(404).json({ error: 'Modelo no encontrado' });
+
+  const { texto_antecedentes = '', firmas = [], instrucciones_adicionales = '' } = req.body;
+  if (!texto_antecedentes.trim())
+    return res.status(400).json({ error: 'Se requiere el texto de antecedentes' });
+
+  const camposPlantilla = extractFieldNames(modelo.cuerpo || '');
+
+  console.log('CUERPO MODELO:', modelo.cuerpo?.slice(0, 200));
+  console.log('CAMPOS:', camposPlantilla);
+
+  const firmasStr = firmas.length
+    ? '\nFIRMAS ELECTRÓNICAS DETECTADAS EN LOS DOCUMENTOS:\n' +
+      firmas.map(f => {
+        const partes = [`- ${f.firmante}`];
+        if (f.fecha)     partes.push(`Fecha: ${f.fecha}`);
+        if (f.rol)       partes.push(`Cargo: ${f.rol}`);
+        if (f.nif)       partes.push(`NIF: ${f.nif}`);
+        if (f.documento) partes.push(`Documento: ${f.documento}`);
+        return partes.join(' | ');
+      }).join('\n')
+    : '';
+
+  const systemPrompt = `Eres un asistente de la Secretaría del Ayuntamiento de Totana (Murcia).
+
+Tu tarea es EXCLUSIVAMENTE sustituir los campos {{CAMPO}} de la plantilla por los valores que encuentres en los documentos aportados. No redactes, no reescribas, no reorganices. Devuelve la plantilla íntegra con los campos rellenados.
+
+CAMPOS A RELLENAR:
+${camposPlantilla.map(c => `• {{${c}}}`).join('\n')}
+
+REGLAS:
+1. Devuelve el texto de la plantilla COMPLETO y SIN MODIFICAR, únicamente con los {{CAMPOS}} sustituidos.
+2. Si no encuentras el valor de un campo en los documentos, déjalo exactamente como {{NOMBRE_CAMPO}}.
+3. No añadas, elimines ni muevas ninguna frase, título, sección ni punto de la plantilla.
+4. Formatos obligatorios:
+   - Fechas: "DD de [mes] de YYYY"  →  "15 de marzo de 2024"
+   - Importes: cifra con separador de miles y dos decimales  →  "12.500,00 €"
+   - Nombres: APELLIDO1 APELLIDO2, Nombre  →  "GARCÍA LÓPEZ, Juan"
+5. Las firmas electrónicas identifican cargo (Alcalde, Secretario, Interventor…); úsalas para los campos de persona correspondientes.`;
+
+  const mensajeUsuario = `PLANTILLA (devuélvela completa con los campos sustituidos):
+---
+${modelo.cuerpo}
+---
+
+DOCUMENTOS PDF (fuente de los valores):
+---
+${texto_antecedentes.slice(0, 5000)}${texto_antecedentes.length > 5000 ? '\n[... texto adicional omitido ...]' : ''}
+---
+${firmasStr}
+${instrucciones_adicionales.trim() ? '\nINSTRUCCIONES ADICIONALES:\n' + instrucciones_adicionales : ''}`;
+
+  console.log('MENSAJE USUARIO LONGITUD:', mensajeUsuario.length);
+  console.log('MENSAJE USUARIO INICIO:', mensajeUsuario.slice(0, 300));
+
+  try {
+    const acuerdoMarkdown = await _llamarClaude(systemPrompt, mensajeUsuario);
+    db.prepare('INSERT INTO actividad (modelo_id,user_id,accion,detalle) VALUES (?,?,?,?)')
+      .run(modelo.id, req.user.id, 'generó acuerdo con IA', `${firmas.length} firmante(s)`);
+    res.json({ acuerdo_markdown: acuerdoMarkdown });
+  } catch (e) {
+    console.error('Error Claude:', e.message);
+    res.status(500).json({ error: 'Error al generar el acuerdo: ' + e.message });
+  }
+});
+// ─── RUTA 3: Generar + exportar ODT directamente ──────────────────────────────
+// POST /api/modelos/:id/ia-export-odt
+// Body: { acuerdo_markdown, plantilla_id, campos }
+// Devuelve el .odt directamente para descarga
+app.post('/api/modelos/:id/ia-export-odt', auth, async (req, res) => {
+  const modelo = db.prepare(`
+    SELECT m.*, c.nombre as categoria_nombre
+    FROM modelos m LEFT JOIN categorias c ON m.categoria_id=c.id WHERE m.id=?
+  `).get(req.params.id);
+  if (!modelo) return res.status(404).json({ error: 'Modelo no encontrado' });
+
+  const { acuerdo_markdown, plantilla_id, campos = {} } = req.body;
+  if (!acuerdo_markdown || !acuerdo_markdown.trim())
+    return res.status(400).json({ error: 'Se requiere el texto del acuerdo' });
+
+  // Crear un modelo temporal en memoria para reutilizar _generateOdtBuffer
+  const modeloTmp = {
+    ...modelo,
+    cuerpo: acuerdo_markdown,
+    nombre: modelo.nombre,
+  };
+
+  try {
+    const buf = await _generateOdtBuffer(modeloTmp, campos, plantilla_id || null, {});
+
+    // Guardar copia en carpeta de la categoría
+    if (modelo.categoria_nombre) {
+      const dir = path.join(FILES_DIR, sanitizeName(modelo.categoria_nombre));
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, `${sanitizeName(modelo.nombre)}_IA_${Date.now()}.odt`), buf);
+    }
+
+    db.prepare('INSERT INTO actividad (modelo_id,user_id,accion) VALUES (?,?,?)')
+      .run(modelo.id, req.user.id, 'exportó acuerdo IA a .odt');
+
+    res.setHeader('Content-Type', 'application/vnd.oasis.opendocument.text');
+    res.setHeader('Content-Disposition',
+      `attachment; filename="${sanitizeForHeader(modelo.nombre)}_IA.odt"`);
+    res.send(buf);
+  } catch (e) {
+    console.error('IA ODT export error:', e.message);
+    res.status(500).json({ error: 'Error generando ODT: ' + e.message });
+  }
+});
+
+// ─── RUTA 4: Estado de la IA ──────────────────────────────────────────────────
+app.get('/api/ia/status', auth, (req, res) => {
+  res.json({ disponible: !!process.env.ANTHROPIC_API_KEY, modelo: 'claude-haiku-4-5-20251001' });
+});
 app.post('/api/modelos/:id/duplicate', auth, role('admin','editor'), (req, res) => {
   const { nombre } = req.body;
   if (!nombre) return res.status(400).json({ error: 'Nombre requerido' });
   const original = db.prepare('SELECT * FROM modelos WHERE id=?').get(req.params.id);
   if (!original) return res.status(404).json({ error: 'No encontrado' });
   const r = db.prepare(`INSERT INTO modelos (nombre,categoria_id,estado,descripcion,cuerpo,etiquetas,owner_id,created_by,updated_by)
-    VALUES (?,?,?,?,?,?,?,?,?)`)
-    .run(nombre, original.categoria_id, 'borrador', original.descripcion,
-         original.cuerpo, '[]', req.user.id, req.user.id, req.user.id);
+      VALUES (?,?,?,?,?,?,?,?,?)`)
+      .run(nombre, original.categoria_id, 'borrador', original.descripcion,
+      original.cuerpo, '[]', req.user.id, req.user.id, req.user.id);
   syncGlobalFieldsFromModel(r.lastInsertRowid, original.cuerpo || '');
   db.prepare('INSERT INTO actividad (modelo_id,user_id,accion,detalle) VALUES (?,?,?,?)')
-    .run(r.lastInsertRowid, req.user.id, 'duplic modelo', `desde modelo #${original.id}`);
+      .run(r.lastInsertRowid, req.user.id, 'duplicó modelo', `desde modelo #${original.id}`);
   res.json({ id: r.lastInsertRowid });
 });
+
+app.listen(PORT, () => console.log(`Acuerdos API v3 - puerto ${PORT}`));
