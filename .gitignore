@@ -1,1 +1,10 @@
 backend/scripts/export_odt.py
+carpetas
+.env
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+docker-compose.yml
+.DS_Store
+.gitignore
