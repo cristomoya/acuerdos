@@ -143,6 +143,8 @@ async function initApp() {
   }
   if (me.rol === 'admin') {
     ['tab-c-btn','tab-t-btn','tab-u-btn'].forEach(id => document.getElementById(id).classList.remove('hidden'));
+    const adminCard = document.getElementById('admin-rename-card');
+    if (adminCard) adminCard.style.display = '';
   }
   await Promise.all([loadCats(), loadTpls(), loadGlobalFields()]);
   await loadModels();

@@ -1093,6 +1093,17 @@ app.get('/api/analisis-campos', auth, role('admin', 'editor'), (req, res) => {
   res.json({ total_campos: resultado.length, total_modelos: modelos.length, campos: resultado });
 });
 
+// Renombra un campo en campo_tipos evitando UNIQUE constraint
+function renameCampoTipo(modeloId, from, to) {
+  const exists = db.prepare('SELECT id FROM campo_tipos WHERE modelo_id=? AND campo=?').get(modeloId, to);
+  if (exists) {
+    // El destino ya existe: sólo borra el origen para evitar duplicado
+    db.prepare('DELETE FROM campo_tipos WHERE modelo_id=? AND campo=?').run(modeloId, from);
+  } else {
+    db.prepare('UPDATE campo_tipos SET campo=? WHERE modelo_id=? AND campo=?').run(to, modeloId, from);
+  }
+}
+
 // POST /api/admin/rename-campo  { old: 'MUNICIPIO', new: 'ORGANISMO' }
 app.post('/api/admin/rename-campo', auth, role('admin'), (req, res) => {
   const { old: oldCampo, new: newCampo } = req.body || {};
@@ -1104,7 +1115,6 @@ app.post('/api/admin/rename-campo', auth, role('admin'), (req, res) => {
   const re = new RegExp(`\\{\\{${from}\\}\\}`, 'g');
   const modelos = db.prepare('SELECT id, cuerpo FROM modelos').all();
   const update  = db.prepare('UPDATE modelos SET cuerpo=?, updated_at=datetime(\'now\') WHERE id=?');
-  const updCT   = db.prepare(`UPDATE campo_tipos SET campo=? WHERE campo=? AND modelo_id=?`);
 
   let actualizados = 0;
   db.transaction(() => {
@@ -1112,11 +1122,10 @@ app.post('/api/admin/rename-campo', auth, role('admin'), (req, res) => {
       const nuevo = (m.cuerpo || '').replace(re, `{{${to}}}`);
       if (nuevo !== m.cuerpo) {
         update.run(nuevo, m.id);
-        updCT.run(to, from, m.id);
+        renameCampoTipo(m.id, from, to);
         actualizados++;
       }
     }
-    // Actualizar catálogo: si el campo nuevo ya existe preserva el viejo nombre/tipo
     syncGlobalField(to, {});
   })();
 
@@ -1137,7 +1146,6 @@ app.post('/api/admin/migrar-campos', auth, role('admin'), (req, res) => {
 
   const modelos = db.prepare('SELECT id, cuerpo FROM modelos').all();
   const update  = db.prepare('UPDATE modelos SET cuerpo=?, updated_at=datetime(\'now\') WHERE id=?');
-  const updCT   = db.prepare(`UPDATE campo_tipos SET campo=? WHERE campo=? AND modelo_id=?`);
 
   const resumen = {};
   db.transaction(() => {
@@ -1149,7 +1157,7 @@ app.post('/api/admin/migrar-campos', auth, role('admin'), (req, res) => {
         const nuevo = cuerpo.replace(re, `{{${to}}}`);
         if (nuevo !== cuerpo) {
           resumen[from] = (resumen[from] || 0) + 1;
-          updCT.run(to, from, m.id);
+          renameCampoTipo(m.id, from, to);
           cuerpo = nuevo;
           modificado = true;
         }
