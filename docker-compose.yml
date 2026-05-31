@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
 
   backend:
@@ -42,7 +40,8 @@ services:
         condition: service_healthy
     networks:
       - internal
-     
+      - traefik-net
+
     labels:
       - traefik.enable=true
       - traefik.http.routers.modelos.rule=Host(`modelos.cristobalmoyalopez.es`)
@@ -61,4 +60,6 @@ volumes:
 networks:
   internal:
     driver: bridge
+  traefik-net:
+    external: true
   
