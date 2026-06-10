@@ -198,36 +198,46 @@ function seedGlobalFieldCatalog() {
   modelos.forEach(m => syncGlobalFieldsFromModel(m.id, m.cuerpo || ''));
 }
 
+// Catálogo de campos {{CAMPO}} habituales en expedientes de contratación.
+// Se usa tanto para sembrar el catálogo global como para la deteccion automatica
+// de campos al pegar texto desde Word (ver /api/ia/detectar-campos).
+const CONTRACT_FIELDS = [
+  { clave: 'EXPEDIENTE',           nombre: 'Número / referencia del expediente',                  tipo: 'texto'   },
+  { clave: 'OBJETO',               nombre: 'Objeto del contrato',                                 tipo: 'texto'   },
+  { clave: 'DESCRIPCION',          nombre: 'Descripción del proyecto',                            tipo: 'texto'   },
+  { clave: 'ORGANISMO',            nombre: 'Organismo contratante',                               tipo: 'texto'   },
+  { clave: 'NIF',                  nombre: 'NIF del organismo',                                   tipo: 'texto'   },
+  { clave: 'EMAIL',                nombre: 'Email de contacto',                                   tipo: 'texto'   },
+  { clave: 'TELEFONO',             nombre: 'Teléfono de contacto',                                tipo: 'texto'   },
+  { clave: 'DIRECCION',            nombre: 'Dirección postal',                                    tipo: 'texto'   },
+  { clave: 'TIPO_CONTRATO',        nombre: 'Tipo de contrato (obras, servicios…)',                tipo: 'lista'   },
+  { clave: 'PROCEDIMIENTO',        nombre: 'Procedimiento de licitación',                         tipo: 'lista'   },
+  { clave: 'TRAMITACION',          nombre: 'Tramitación (ordinaria, urgente…)',                   tipo: 'lista'   },
+  { clave: 'CPV',                  nombre: 'Código CPV',                                          tipo: 'texto'   },
+  { clave: 'PRESUPUESTO_BASE',     nombre: 'Presupuesto base sin IVA',                            tipo: 'importe' },
+  { clave: 'PRESUPUESTO_IVA',      nombre: 'Presupuesto total con IVA',                           tipo: 'importe' },
+  { clave: 'VALOR_ESTIMADO',       nombre: 'Valor estimado del contrato',                         tipo: 'importe' },
+  { clave: 'PLAZO',                nombre: 'Plazo de ejecución',                                  tipo: 'texto'   },
+  { clave: 'FECHA_PUBLICACION',    nombre: 'Fecha de publicación',                                tipo: 'fecha'   },
+  { clave: 'FECHA_LIMITE',         nombre: 'Fecha límite de presentación',                        tipo: 'fecha'   },
+  { clave: 'GARANTIA',             nombre: 'Garantía definitiva (%)',                             tipo: 'numero'  },
+  { clave: 'ADJUDICATARIO',        nombre: 'Nombre del adjudicatario',                            tipo: 'texto'   },
+  { clave: 'NIF_ADJUDICATARIO',    nombre: 'NIF del adjudicatario',                               tipo: 'texto'   },
+  { clave: 'IMPORTE_ADJUDICACION', nombre: 'Importe de adjudicación',                             tipo: 'importe' },
+  { clave: 'FECHA_ADJUDICACION',   nombre: 'Fecha de adjudicación',                               tipo: 'fecha'   },
+  { clave: 'FINANCIACION_UE',      nombre: 'Programa de financiación UE',                         tipo: 'texto'   },
+  { clave: 'SERIE_DOCUMENTAL',     nombre: 'Serie documental',                                    tipo: 'texto'   },
+  { clave: 'FECHA',                nombre: 'Fecha de hoy (al generar)',                           tipo: 'fecha'   },
+  { clave: 'SOLICITUD',            nombre: 'Solicitud de la concejalía (sección 1)',              tipo: 'texto'   },
+  { clave: 'RESERVA_CREDITO',      nombre: 'Reserva de crédito / nº documento RC (sección 5)',    tipo: 'texto'   },
+  { clave: 'DIRECTOR_FACULTATIVO', nombre: 'Director facultativo y coordinador de seguridad (sección 6)', tipo: 'texto' },
+  { clave: 'FACULTATIVO_RECEPCION',nombre: 'Facultativo municipal para recepcionar obras (sección 7)',     tipo: 'texto' },
+  { clave: 'EMPRESAS_INVITADAS',   nombre: 'Lista de empresas/licitadores invitados (sección 8)', tipo: 'texto'   },
+  { clave: 'FINANCIACION',         nombre: 'Financiación por administración (sección 9)',         tipo: 'texto'   },
+];
+
 function seedContractFieldCatalog() {
-  const fields = [
-    { clave: 'EXPEDIENTE',          nombre: 'Número / referencia del expediente', tipo: 'texto'   },
-    { clave: 'OBJETO',              nombre: 'Objeto del contrato',                 tipo: 'texto'   },
-    { clave: 'DESCRIPCION',         nombre: 'Descripción del proyecto',            tipo: 'texto'   },
-    { clave: 'ORGANISMO',           nombre: 'Organismo contratante',               tipo: 'texto'   },
-    { clave: 'NIF',                 nombre: 'NIF del organismo',                   tipo: 'texto'   },
-    { clave: 'EMAIL',               nombre: 'Email de contacto',                   tipo: 'texto'   },
-    { clave: 'TELEFONO',            nombre: 'Teléfono de contacto',                tipo: 'texto'   },
-    { clave: 'DIRECCION',           nombre: 'Dirección postal',                    tipo: 'texto'   },
-    { clave: 'TIPO_CONTRATO',       nombre: 'Tipo de contrato',                    tipo: 'lista'   },
-    { clave: 'PROCEDIMIENTO',       nombre: 'Procedimiento de licitación',         tipo: 'lista'   },
-    { clave: 'TRAMITACION',         nombre: 'Tramitación',                         tipo: 'lista'   },
-    { clave: 'CPV',                 nombre: 'Código CPV',                          tipo: 'texto'   },
-    { clave: 'PRESUPUESTO_BASE',    nombre: 'Presupuesto base sin IVA',            tipo: 'importe' },
-    { clave: 'PRESUPUESTO_IVA',     nombre: 'Presupuesto total con IVA',           tipo: 'importe' },
-    { clave: 'VALOR_ESTIMADO',      nombre: 'Valor estimado del contrato',         tipo: 'importe' },
-    { clave: 'PLAZO',               nombre: 'Plazo de ejecución',                  tipo: 'texto'   },
-    { clave: 'FECHA_PUBLICACION',   nombre: 'Fecha de publicación',                tipo: 'fecha'   },
-    { clave: 'FECHA_LIMITE',        nombre: 'Fecha límite de presentación',        tipo: 'fecha'   },
-    { clave: 'GARANTIA',            nombre: 'Garantía definitiva (%)',             tipo: 'numero'  },
-    { clave: 'ADJUDICATARIO',       nombre: 'Nombre del adjudicatario',            tipo: 'texto'   },
-    { clave: 'NIF_ADJUDICATARIO',   nombre: 'NIF del adjudicatario',               tipo: 'texto'   },
-    { clave: 'IMPORTE_ADJUDICACION',nombre: 'Importe de adjudicación',             tipo: 'importe' },
-    { clave: 'FECHA_ADJUDICACION',  nombre: 'Fecha de adjudicación',               tipo: 'fecha'   },
-    { clave: 'FINANCIACION_UE',     nombre: 'Programa de financiación UE',         tipo: 'texto'   },
-    { clave: 'SERIE_DOCUMENTAL',    nombre: 'Serie documental',                    tipo: 'texto'   },
-    { clave: 'FECHA',               nombre: 'Fecha del documento',                 tipo: 'fecha'   },
-  ];
-  fields.forEach(f => syncGlobalField(f.clave, { nombre: f.nombre, tipo: f.tipo }));
+  CONTRACT_FIELDS.forEach(f => syncGlobalField(f.clave, { nombre: f.nombre, tipo: f.tipo }));
 }
 
 seedGlobalFieldCatalog();
@@ -1269,6 +1279,38 @@ async function _llamarClaude(systemPrompt, userMessage) {
   const data = await response.json();
   return data.content?.[0]?.text || '';
 }
+
+// ─── RUTA 0: Detectar y sustituir {{CAMPOS}} en texto pegado desde Word ──────
+// POST /api/ia/detectar-campos
+app.post('/api/ia/detectar-campos', auth, async (req, res) => {
+  const { texto } = req.body;
+  if (!texto || !texto.trim()) return res.status(400).json({ error: 'Se requiere texto' });
+
+  const systemPrompt = `Eres un asistente de la Secretaría de un Ayuntamiento que prepara plantillas de documentos administrativos.
+
+Tu tarea es EXCLUSIVAMENTE sustituir, en el texto que se te entrega, los valores concretos que correspondan a alguno de los siguientes campos por su marcador {{CLAVE}}. No redactes, no reescribas, no reorganices, no traduzcas ni resumas nada del texto.
+
+CAMPOS DISPONIBLES:
+${CONTRACT_FIELDS.map(f => `- {{${f.clave}}}: ${f.nombre}`).join('\n')}
+
+REGLAS:
+1. Devuelve el texto COMPLETO y SIN MODIFICAR salvo por las sustituciones de campos.
+2. Sustituye únicamente valores concretos que coincidan claramente con la descripción de un campo (p.ej. un NIF real por {{NIF}}, una fecha real por {{FECHA_PUBLICACION}} o {{FECHA_LIMITE}} segun el contexto, un importe por {{PRESUPUESTO_BASE}}/{{PRESUPUESTO_IVA}}/{{VALOR_ESTIMADO}}/{{IMPORTE_ADJUDICACION}} segun corresponda).
+3. Si un mismo valor aparece varias veces, sustitúyelo todas las veces por el mismo {{CAMPO}}.
+4. Si no encuentras un valor claro para un campo, no insertes su marcador: deja esa parte del texto tal cual.
+5. No sustituyas texto que ya sea un marcador {{...}}.
+6. No añadas comentarios, explicaciones ni texto adicional: devuelve únicamente el texto resultante.`;
+
+  const mensajeUsuario = `TEXTO:\n---\n${texto}\n---`;
+
+  try {
+    const resultado = await _llamarClaude(systemPrompt, mensajeUsuario);
+    res.json({ texto: resultado.trim() });
+  } catch (e) {
+    console.error('Error detectando campos:', e.message);
+    res.status(500).json({ error: 'No se pudieron detectar los campos: ' + e.message });
+  }
+});
 
 // ─── RUTA 1: Extraer texto + firmas de uno o varios PDFs ─────────────────────
 // POST /api/ia/extraer-pdf

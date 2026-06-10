@@ -1738,14 +1738,23 @@ function triggerPasteFromWord() {
   setTimeout(() => document.getElementById('paste-input').focus(), 100);
 }
 
-function confirmPasteWord() {
+async function confirmPasteWord() {
   const div = document.getElementById('paste-input');
   const html = div.innerHTML;
   if (!html.trim()) { closeModal('m-paste-word'); return; }
-  const md = _htmlToMarkdown(html).replace(/\n{3,}/g, '\n\n').trim();
-  _insertMarkdown(md);
+  let md = _htmlToMarkdown(html).replace(/\n{3,}/g, '\n\n').trim();
+  const detectFields = document.getElementById('paste-detect-fields')?.checked;
   div.innerHTML = '';
   closeModal('m-paste-word');
+
+  if (detectFields) {
+    toast('Detectando campos con IA…');
+    const res = await api('POST', '/ia/detectar-campos', { texto: md });
+    if (res?.error) toast('No se pudieron detectar campos: ' + res.error);
+    else if (res?.texto) md = res.texto;
+  }
+
+  _insertMarkdown(md);
   toast('Texto pegado ✓');
 }
 

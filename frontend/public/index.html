@@ -674,11 +674,15 @@
   <div class="modal" style="width:560px">
     <div class="mtitle">📋 Pegar desde Word / Writer</div>
     <div class="msub">Pega el texto copiado de Word o LibreOffice Writer aquí abajo (Ctrl+V)</div>
-    <div id="paste-input" contenteditable="true" 
+    <div id="paste-input" contenteditable="true"
       style="height:300px;overflow-y:auto;border:0.5px solid var(--border2);
              border-radius:var(--r);padding:10px;font-size:13px;
              font-family:inherit;line-height:1.6;outline:none"
       placeholder="Pega aquí el texto de Word..."></div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin-top:10px">
+      <input type="checkbox" id="paste-detect-fields" checked/>
+      Detectar y sustituir valores por {{CAMPOS}} con IA
+    </label>
     <div class="mfoot">
       <button class="btn btn-sm" onclick="closeModal('m-paste-word')">Cancelar</button>
       <button class="btn btn-sm btn-primary" onclick="confirmPasteWord()">Insertar</button>
