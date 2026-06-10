@@ -1288,24 +1288,27 @@ app.post('/api/ia/detectar-campos', auth, async (req, res) => {
 
   const systemPrompt = `Eres un asistente de la Secretaría de un Ayuntamiento que prepara plantillas de documentos administrativos.
 
-Tu tarea es EXCLUSIVAMENTE sustituir, en el texto que se te entrega, los valores concretos que correspondan a alguno de los siguientes campos por su marcador {{CLAVE}}. No redactes, no reescribas, no reorganices, no traduzcas ni resumas nada del texto.
+Vas a recibir el texto de un documento. Tu tarea es EXCLUSIVAMENTE sustituir, dentro de ese texto, los valores concretos que correspondan a alguno de los siguientes campos por su marcador {{CLAVE}}. No redactes, no reescribas, no reorganices, no traduzcas ni resumas nada del texto.
 
 CAMPOS DISPONIBLES:
 ${CONTRACT_FIELDS.map(f => `- {{${f.clave}}}: ${f.nombre}`).join('\n')}
 
 REGLAS:
-1. Devuelve el texto COMPLETO y SIN MODIFICAR salvo por las sustituciones de campos.
-2. Sustituye únicamente valores concretos que coincidan claramente con la descripción de un campo (p.ej. un NIF real por {{NIF}}, una fecha real por {{FECHA_PUBLICACION}} o {{FECHA_LIMITE}} segun el contexto, un importe por {{PRESUPUESTO_BASE}}/{{PRESUPUESTO_IVA}}/{{VALOR_ESTIMADO}}/{{IMPORTE_ADJUDICACION}} segun corresponda).
+1. Devuelve el documento COMPLETO y SIN MODIFICAR salvo por las sustituciones de campos.
+2. Sustituye valores concretos que coincidan razonablemente con la descripción de un campo (p.ej. un NIF real por {{NIF}}, una fecha real por {{FECHA_PUBLICACION}} o {{FECHA_LIMITE}} según el contexto, un importe por {{PRESUPUESTO_BASE}}/{{PRESUPUESTO_IVA}}/{{VALOR_ESTIMADO}}/{{IMPORTE_ADJUDICACION}} según corresponda). Ante la duda razonable entre dos campos similares, elige el que tenga más sentido por el contexto en vez de no sustituir nada.
 3. Si un mismo valor aparece varias veces, sustitúyelo todas las veces por el mismo {{CAMPO}}.
-4. Si no encuentras un valor claro para un campo, no insertes su marcador: deja esa parte del texto tal cual.
+4. Si no encuentras ningún valor para un campo, simplemente no insertes su marcador: deja esa parte del texto tal cual. No es necesario usar todos los campos.
 5. No sustituyas texto que ya sea un marcador {{...}}.
-6. No añadas comentarios, explicaciones ni texto adicional: devuelve únicamente el texto resultante.`;
-
-  const mensajeUsuario = `TEXTO:\n---\n${texto}\n---`;
+6. Responde ÚNICAMENTE con el documento resultante, sin comentarios, explicaciones, marcas de código (\`\`\`) ni texto adicional antes o después.`;
 
   try {
-    const resultado = await _llamarClaude(systemPrompt, mensajeUsuario);
-    res.json({ texto: resultado.trim() });
+    const resultado = await _llamarClaude(systemPrompt, texto);
+    let limpio = resultado.trim();
+    // Por si el modelo envuelve la respuesta en un bloque de código pese a la instrucción
+    const fence = limpio.match(/^```[a-zA-Z]*\n([\s\S]*)\n```$/);
+    if (fence) limpio = fence[1].trim();
+    console.log(`[detectar-campos] entrada ${texto.length} chars, salida ${limpio.length} chars, cambios: ${limpio !== texto}`);
+    res.json({ texto: limpio });
   } catch (e) {
     console.error('Error detectando campos:', e.message);
     res.status(500).json({ error: 'No se pudieron detectar los campos: ' + e.message });

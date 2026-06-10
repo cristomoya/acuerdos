@@ -1750,8 +1750,15 @@ async function confirmPasteWord() {
   if (detectFields) {
     toast('Detectando campos con IA…');
     const res = await api('POST', '/ia/detectar-campos', { texto: md });
-    if (res?.error) toast('No se pudieron detectar campos: ' + res.error);
-    else if (res?.texto) md = res.texto;
+    if (res?.error) {
+      toast('No se pudieron detectar campos: ' + res.error);
+    } else if (res?.texto) {
+      if (res.texto === md) toast('Texto pegado (sin campos detectados)');
+      else toast('Texto pegado con {{campos}} sustituidos ✓');
+      md = res.texto;
+      _insertMarkdown(md);
+      return;
+    }
   }
 
   _insertMarkdown(md);
