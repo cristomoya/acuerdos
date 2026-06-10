@@ -107,8 +107,6 @@
     /* ── SUBCATEGORY TREE ── */
     .subcat-hdr{display:flex;align-items:center;gap:5px;padding:4px 9px 4px 20px;border-radius:var(--r);cursor:pointer;transition:background .1s;font-size:11px;color:var(--text2)}
     .subcat-hdr:hover{background:var(--surface2)}
-    .subcat-kids{padding-left:8px;display:none}
-    .subcat-kids.open{display:block}
     .subcat-mod{padding:4px 9px 4px 36px;border-radius:var(--r);cursor:pointer;font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .1s}
     .subcat-mod:hover{background:var(--surface2);color:var(--text)}
     .subcat-mod.active{background:var(--blue-bg);color:var(--blue)}
@@ -196,14 +194,14 @@
     .uemail{font-size:11px;color:var(--text3)}
 
     /* ── CATEGORIES ── */
-    .catgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
-    .catcard{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--rl);padding:12px}
-    .catcard-top{display:flex;align-items:flex-start;gap:9px;margin-bottom:8px}
-    .catcard-ico{font-size:22px;width:32px;text-align:center;flex-shrink:0}
-    .catcard-name{font-size:13px;font-weight:600}
-    .catcard-desc{font-size:11px;color:var(--text2);margin-top:2px}
-    .catcard-foot{display:flex;align-items:center;gap:6px;padding-top:8px;border-top:0.5px solid var(--border);font-size:11px;color:var(--text3)}
-    .catcard-folder{font-family:monospace;font-size:10px;background:var(--surface2);padding:2px 6px;border-radius:4px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .catgrid{display:flex;flex-direction:column;gap:6px}
+    .catcard-folder{font-family:monospace;font-size:10px;background:var(--surface2);padding:2px 6px;border-radius:4px;color:var(--text2);flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
+    .cattree-row{display:flex;align-items:center;gap:10px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:8px 10px}
+    .cattree-ico{font-size:18px;width:26px;text-align:center;flex-shrink:0}
+    .cattree-info{flex:1;min-width:0}
+    .cattree-name{font-size:13px;font-weight:600}
+    .cattree-desc{font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cattree-count{font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0}
 
     /* ── TEMPLATES ── */
     .tplcard{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--rl);padding:12px;display:flex;align-items:center;gap:12px}

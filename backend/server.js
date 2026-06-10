@@ -507,6 +507,21 @@ app.put('/api/users/:id', auth, role('admin'), (req, res) => {
 });
 
 // ??? CATEGORAS ???????????????????????????????????????????????????????????????
+// Devuelve los ids de una categoria y todos sus descendientes (a cualquier profundidad)
+function getCategorySubtreeIds(rootId) {
+  const all = db.prepare('SELECT id, parent_id FROM categorias').all();
+  const byParent = {};
+  all.forEach(c => { (byParent[c.parent_id] = byParent[c.parent_id] || []).push(c.id); });
+  const ids = [];
+  const stack = [rootId];
+  while (stack.length) {
+    const id = stack.pop();
+    ids.push(id);
+    (byParent[id] || []).forEach(childId => stack.push(childId));
+  }
+  return ids;
+}
+
 app.get('/api/categorias', auth, (req, res) => {
   res.json(db.prepare(`SELECT c.*, COUNT(m.id) as total_modelos FROM categorias c LEFT JOIN modelos m ON m.categoria_id=c.id GROUP BY c.id ORDER BY c.orden, c.nombre`).all());
 });
@@ -514,7 +529,10 @@ app.get('/api/categorias', auth, (req, res) => {
 app.post('/api/categorias', auth, role('admin'), (req, res) => {
   const { nombre, descripcion, icono, color, orden, parent_id } = req.body;
   if (!nombre) return res.status(400).json({ error: 'Nombre requerido' });
-  // Solo se puede asignar modelos a subcategorias (hijos), no a raiz
+  if (parent_id) {
+    const parent = db.prepare('SELECT id FROM categorias WHERE id=?').get(parent_id);
+    if (!parent) return res.status(400).json({ error: 'Categoria padre no encontrada' });
+  }
   const r = db.prepare(`INSERT INTO categorias (nombre,descripcion,icono,color,orden,parent_id,created_by)
     VALUES (?,?,?,?,?,?,?)`)
     .run(nombre, descripcion||'', icono||'*', color||'blue', orden||0, parent_id||null, req.user.id);
@@ -523,18 +541,30 @@ app.post('/api/categorias', auth, role('admin'), (req, res) => {
 
 app.put('/api/categorias/:id', auth, role('admin'), (req, res) => {
   const { nombre, descripcion, icono, color, orden, activa, parent_id } = req.body;
+  const id = Number(req.params.id);
+  if (parent_id) {
+    if (Number(parent_id) === id) return res.status(400).json({ error: 'Una categoria no puede ser su propio padre' });
+    if (getCategorySubtreeIds(id).includes(Number(parent_id))) {
+      return res.status(400).json({ error: 'No se puede mover una categoria dentro de si misma o de sus subcategorias' });
+    }
+  }
   db.prepare(`UPDATE categorias SET nombre=?,descripcion=?,icono=?,color=?,orden=?,activa=?,parent_id=? WHERE id=?`)
-    .run(nombre, descripcion||'', icono||'*', color||'blue', orden||0, activa ?? 1, parent_id||null, req.params.id);
+    .run(nombre, descripcion||'', icono||'*', color||'blue', orden||0, activa ?? 1, parent_id||null, id);
   res.json({ ok: true });
 });
 
 app.delete('/api/categorias/:id', auth, role('admin'), (req, res) => {
   const cat = db.prepare('SELECT * FROM categorias WHERE id=?').get(req.params.id);
   if (!cat) return res.status(404).json({ error: 'No encontrada' });
-  const n = db.prepare('SELECT COUNT(*) as n FROM modelos WHERE categoria_id=?').get(req.params.id).n;
-  if (n > 0) return res.status(400).json({ error: `Tiene ${n} modelo(s). Reasgnalos primero.` });
+  const subtreeIds = getCategorySubtreeIds(cat.id);
+  const placeholders = subtreeIds.map(() => '?').join(',');
+  const n = db.prepare(`SELECT COUNT(*) as n FROM modelos WHERE categoria_id IN (${placeholders})`).get(...subtreeIds).n;
+  if (n > 0) return res.status(400).json({ error: `Tiene ${n} modelo(s) en esta categoria o sus subcategorias. Reasignalos primero.` });
+  const cats = db.prepare(`SELECT id, nombre FROM categorias WHERE id IN (${placeholders})`).all(...subtreeIds);
   db.prepare('DELETE FROM categorias WHERE id=?').run(req.params.id);
-  try { const d = path.join(FILES_DIR, sanitizeName(cat.nombre)); if (fs.existsSync(d)) fs.rmdirSync(d); } catch {}
+  cats.forEach(c => {
+    try { const d = path.join(FILES_DIR, sanitizeName(c.nombre)); if (fs.existsSync(d)) fs.rmdirSync(d); } catch {}
+  });
   res.json({ ok: true });
 });
 

@@ -1,0 +1,17 @@
+﻿async function loadCats() {
+  cats = await api('GET', '/categorias') || [];
+  const sel = document.getElementById('e-cat');
+  const cur = sel.value;
+  let opts = '<option value="">— Sin categoría —</option>';
+  walkCatTree((c, depth) => {
+    const indent = '    '.repeat(depth);
+    opts += `<option value="${c.id}">${indent}${escapeHtml(`${c.icono} ${c.nombre}`)}</option>`;
+  });
+  sel.innerHTML = opts;
+  if (cur) sel.value = cur;
+  const psel = document.getElementById('mc-parent');
+  if (psel) {
+    const exclude = catEditId ? new Set(catSubtreeIds(catEditId)) : new Set();
+    let popts = '<option value="">— Categoría raíz —</option>';
+    walkCatTree((c, depth) => {
+      i

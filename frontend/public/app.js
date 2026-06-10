@@ -172,24 +172,52 @@ document.getElementById('e-body').addEventListener('keyup', function(e) {
 });
 
 // "?"?"? CATS "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
+// Devuelve los hijos directos de un padre (id o null), ordenados
+function catChildren(parentId) {
+  return cats.filter(c => (c.parent_id || null) === (parentId || null))
+    .sort((a, b) => (a.orden - b.orden) || a.nombre.localeCompare(b.nombre));
+}
+
+// Recorre el arbol de categorias en orden, llamando cb(cat, depth) para cada nodo
+function walkCatTree(cb, parentId = null, depth = 0) {
+  catChildren(parentId).forEach(c => {
+    cb(c, depth);
+    walkCatTree(cb, c.id, depth + 1);
+  });
+}
+
+// Devuelve los ids de una categoria y todos sus descendientes
+function catSubtreeIds(rootId) {
+  const ids = [rootId];
+  catChildren(rootId).forEach(c => ids.push(...catSubtreeIds(c.id)));
+  return ids;
+}
+
 async function loadCats() {
   cats = await api('GET', '/categorias') || [];
   const sel = document.getElementById('e-cat');
   const cur = sel.value;
-  const subcats = cats.filter(c => c.parent_id);
-  sel.innerHTML = '<option value="">?" Sin categoria ?"</option>' +
-    subcats.map(c => {
-      const parent = cats.find(p => p.id === c.parent_id);
-      const label = parent ? `${parent.icono} ${parent.nombre} ? ${c.icono} ${c.nombre}` : `${c.icono} ${c.nombre}`;
-      return `<option value="${c.id}">${escapeHtml(label)}</option>`;
-    }).join('');
+  let opts = '<option value="">— Sin categoría —</option>';
+  walkCatTree((c, depth) => {
+    const indent = '    '.repeat(depth);
+    opts += `<option value="${c.id}">${indent}${escapeHtml(`${c.icono} ${c.nombre}`)}</option>`;
+  });
+  sel.innerHTML = opts;
   if (cur) sel.value = cur;
+  populateParentSelect();
+}
+
+function populateParentSelect() {
   const psel = document.getElementById('mc-parent');
-  if (psel) {
-    const roots = cats.filter(c => !c.parent_id);
-    psel.innerHTML = '<option value="">?" Categoria raiz ?"</option>' +
-      roots.map(c => `<option value="${c.id}">${escapeHtml(`${c.icono} ${c.nombre}`)}</option>`).join('');
-  }
+  if (!psel) return;
+  const exclude = catEditId ? new Set(catSubtreeIds(catEditId)) : new Set();
+  let popts = '<option value="">— Categoría raíz —</option>';
+  walkCatTree((c, depth) => {
+    if (exclude.has(c.id)) return;
+    const indent = '    '.repeat(depth);
+    popts += `<option value="${c.id}">${indent}${escapeHtml(`${c.icono} ${c.nombre}`)}</option>`;
+  });
+  psel.innerHTML = popts;
 }
 
 // "?"?"? TEMPLATES "?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?"?
@@ -326,65 +354,53 @@ function renderTree() {
   const byCat = {};
   models.forEach(m => { const k = m.categoria_id||0; if(!byCat[k]) byCat[k]=[]; byCat[k].push(m); });
 
-  const roots  = cats.filter(c => !c.parent_id);
-  const byParent = {};
-  cats.filter(c => c.parent_id).forEach(c => {
-    if (!byParent[c.parent_id]) byParent[c.parent_id] = [];
-    byParent[c.parent_id].push(c);
-  });
-
-  function countForRoot(root) {
-    const subs = byParent[root.id] || [];
-    return subs.reduce((n, s) => n + (byCat[s.id]||[]).length, 0) + (byCat[root.id]||[]).length;
-  }
-
   const arrow = `<svg width="11" height="11" viewBox="0 0 11 11" class="catarrow" style="flex-shrink:0;transition:transform .15s"><path d="M2.5 4l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>`;
 
-  let html = '';
-  roots.forEach(root => {
-    const rootId = Number(root.id);
-    const subs = byParent[root.id] || [];
-    const total = countForRoot(root);
-    html += `<div class="catrow">
-      <div class="cathdr" onclick="toggleCat(this,${rootId})">
-        <span class="catico">${escapeHtml(root.icono)}</span>
-        <span class="catname">${escapeHtml(root.nombre)}</span>
+  function countSubtree(catId) {
+    let n = (byCat[catId]||[]).length;
+    catChildren(catId).forEach(c => n += countSubtree(c.id));
+    return n;
+  }
+
+  function modItem(m, modClass) {
+    const mid = Number(m.id);
+    return `<div class="${modClass} ${mid===activeId?'active':''}" onclick="openModel(${mid})">${escapeHtml(m.nombre)}</div>`;
+  }
+
+  function renderNode(c, depth) {
+    const id = Number(c.id);
+    const children = catChildren(c.id);
+    const ms = byCat[c.id] || [];
+    const total = countSubtree(c.id);
+    const hdrHtml = depth === 0
+      ? `<span class="catico">${escapeHtml(c.icono)}</span><span class="catname">${escapeHtml(c.nombre)}</span>`
+      : `<span style="font-size:13px">${escapeHtml(c.icono)}</span><span style="flex:1;font-weight:500">${escapeHtml(c.nombre)}</span>`;
+    const hdrClass = depth === 0 ? 'cathdr' : 'subcat-hdr';
+    const modClass = depth === 0 ? 'catmod' : 'subcat-mod';
+    let html = `<div class="catrow">
+      <div class="${hdrClass}" onclick="toggleCat(this,${id})">
+        ${hdrHtml}
         <span class="catcnt">${total}</span>
         ${arrow}
       </div>
-      <div class="catkids" id="ck-${rootId}">`;
-
-    if (subs.length) {
-      subs.forEach(sub => {
-        const subId = Number(sub.id);
-        const ms = byCat[sub.id] || [];
-        html += `<div>
-          <div class="subcat-hdr" onclick="toggleSubcat(this,${subId})">
-            <span style="font-size:13px">${escapeHtml(sub.icono)}</span>
-            <span style="flex:1;font-weight:500">${escapeHtml(sub.nombre)}</span>
-            <span class="catcnt">${ms.length}</span>
-            ${arrow}
-          </div>
-          <div class="subcat-kids" id="sk-${subId}">
-            ${ms.map(m=>{ const mid=Number(m.id); return `<div class="subcat-mod ${mid===activeId?'active':''}" onclick="openModel(${mid})">${escapeHtml(m.nombre)}</div>`; }).join('')}
-          </div>
-        </div>`;
-      });
-    } else {
-      const ms = byCat[root.id] || [];
-      html += ms.map(m=>{ const mid=Number(m.id); return `<div class="catmod ${mid===activeId?'active':''}" onclick="openModel(${mid})">${escapeHtml(m.nombre)}</div>`; }).join('');
-    }
+      <div class="catkids" id="ck-${id}">`;
+    children.forEach(child => { html += renderNode(child, depth + 1); });
+    html += ms.map(m => modItem(m, modClass)).join('');
     html += `</div></div>`;
-  });
+    return html;
+  }
+
+  let html = '';
+  catChildren(null).forEach(root => { html += renderNode(root, 0); });
 
   const nocat = byCat[0]||[];
   if (nocat.length) {
     html += `<div class="catrow">
       <div class="cathdr" onclick="toggleCat(this,0)">
-        <span class="catico">📁</span><span class="catname">Sin categoria</span>
+        <span class="catico">📁</span><span class="catname">Sin categoría</span>
         <span class="catcnt">${nocat.length}</span>${arrow}
       </div>
-      <div class="catkids" id="ck-0">${nocat.map(m=>{ const mid=Number(m.id); return `<div class="catmod ${mid===activeId?'active':''}" onclick="openModel(${mid})">${escapeHtml(m.nombre)}</div>`; }).join('')}</div>
+      <div class="catkids" id="ck-0">${nocat.map(m => modItem(m, 'catmod')).join('')}</div>
     </div>`;
   }
 
@@ -393,26 +409,18 @@ function renderTree() {
   if (activeId) {
     const am = models.find(m=>m.id===activeId);
     if (am && am.categoria_id) {
-      const sub = cats.find(c=>c.id===am.categoria_id);
-      if (sub && sub.parent_id) {
-        const ck = document.getElementById(`ck-${Number(sub.parent_id)}`);
+      let cid = am.categoria_id;
+      while (cid) {
+        const ck = document.getElementById(`ck-${Number(cid)}`);
         if (ck) ck.classList.add('open');
-        const sk = document.getElementById(`sk-${Number(sub.id)}`);
-        if (sk) sk.classList.add('open');
-      } else {
-        const ck = document.getElementById(`ck-${Number(am.categoria_id)}`);
-        if (ck) ck.classList.add('open');
+        const c = cats.find(x => x.id === cid);
+        cid = c ? c.parent_id : null;
       }
+    } else {
+      const ck = document.getElementById('ck-0');
+      if (ck) ck.classList.add('open');
     }
   }
-}
-
-function toggleSubcat(hdr, id) {
-  const kids = document.getElementById(`sk-${id}`);
-  if (!kids) return;
-  kids.classList.toggle('open');
-  const arr = hdr.querySelector('.catarrow');
-  if (arr) arr.style.transform = kids.classList.contains('open') ? 'rotate(0deg)' : 'rotate(-90deg)';
 }
 
 function toggleCat(hdr, id) {
@@ -1329,58 +1337,29 @@ function copyMacro() {
 async function renderCatsTab() {
   await loadCats();
   const el = document.getElementById('catgrid');
-  if (!cats.length) { el.innerHTML='<p style="color:var(--text3);font-size:13px">No hay categorias.</p>'; return; }
-
-  const roots = cats.filter(c => !c.parent_id);
-  const byParent = {};
-  cats.filter(c => c.parent_id).forEach(c => {
-    if (!byParent[c.parent_id]) byParent[c.parent_id] = [];
-    byParent[c.parent_id].push(c);
-  });
+  if (!cats.length) { el.innerHTML='<p style="color:var(--text3);font-size:13px">No hay categorías.</p>'; return; }
 
   let html = '';
-  roots.forEach(root => {
-    const rootId = Number(root.id);
-    const folder = root.nombre.replace(/[<>:"/\|?*]/g,'').replace(/\s+/g,'_').trim();
-    const subs = byParent[root.id] || [];
-    html += `<div class="catcard" style="grid-column:1/-1;border-left:3px solid ${COLORS[root.color]||COLORS.blue}">
-      <div class="catcard-top">
-        <div class="catcard-ico">${escapeHtml(root.icono)}</div>
-        <div style="flex:1">
-          <div class="catcard-name">${escapeHtml(root.nombre)}</div>
-          <div class="catcard-desc">${escapeHtml(root.descripcion||'Sin descripcin')}</div>
-        </div>
-        ${me.rol==='admin'?`
-        <button class="btn btn-sm" onclick="openCatModal(${rootId})">Edit</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteCat(${rootId})">Delete</button>
-        <button class="btn btn-sm btn-primary" onclick="openCatModal(null,${rootId})" title="Nueva subcategoria">+ Sub</button>`:''}
+  walkCatTree((c, depth) => {
+    const id = Number(c.id);
+    const folder = c.nombre.replace(/[<>:"/\\|?*]/g,'').replace(/\s+/g,'_').trim();
+    html += `<div class="cattree-row" style="margin-left:${depth*24}px;border-left:3px solid ${COLORS[c.color]||COLORS.blue}">
+      <div class="cattree-ico">${escapeHtml(c.icono)}</div>
+      <div class="cattree-info">
+        <div class="cattree-name">${escapeHtml(c.nombre)}</div>
+        <div class="cattree-desc">${escapeHtml(c.descripcion||'Sin descripción')}</div>
       </div>
-      ${subs.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;padding-top:8px;border-top:0.5px solid var(--border)">
-        ${subs.map(sub => {
-          const subId = Number(sub.id);
-          const sf = sub.nombre.replace(/[<>:"\/\|?*]/g,'').replace(/\s+/g,'_').trim();
-          return `<div class="catcard" style="margin:0;flex:1;min-width:200px">
-            <div class="catcard-top" style="margin-bottom:4px">
-              <div class="catcard-ico" style="font-size:16px">${escapeHtml(sub.icono)}</div>
-              <div>
-                <div class="catcard-name" style="font-size:12px">${escapeHtml(sub.nombre)}</div>
-              </div>
-            </div>
-            <div class="catcard-foot">
-              <span style="color:${COLORS[sub.color]||COLORS.blue};font-weight:500">${sub.total_modelos} modelos</span>
-              <span class="catcard-folder">DIR ${sf}/</span>
-              ${me.rol==='admin'?`
-              <button class="btn btn-sm" onclick="showCatFiles(${subId},${JSON.stringify(sub.nombre)})">Open</button>
-              <button class="btn btn-sm" onclick="openCatModal(${subId})">Edit</button>
-              <button class="btn btn-sm btn-danger" onclick="deleteCat(${subId})">Delete</button>`:''}
-            </div>
-          </div>`;
-        }).join('')}
-      </div>` : `<div style="font-size:11px;color:var(--text3);padding-top:6px">Sin subcategorias - <a href="#" onclick="openCatModal(null,${rootId});return false" style="color:var(--blue)">anadir</a></div>`}
+      <span class="cattree-count">${c.total_modelos} modelo${c.total_modelos===1?'':'s'}</span>
+      <span class="catcard-folder">${escapeHtml(folder)}/</span>
+      ${me.rol==='admin'?`
+      <button class="btn btn-sm" onclick="showCatFiles(${id},${JSON.stringify(c.nombre)})">Abrir</button>
+      <button class="btn btn-sm" onclick="openCatModal(${id})">Editar</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteCat(${id})">Eliminar</button>
+      <button class="btn btn-sm btn-primary" onclick="openCatModal(null,${id})" title="Nueva subcategoría">+ Sub</button>`:''}
     </div>`;
   });
 
-  el.innerHTML = html || '<p style="color:var(--text3);font-size:13px">No hay categorias.</p>';
+  el.innerHTML = html || '<p style="color:var(--text3);font-size:13px">No hay categorías.</p>';
 }
 
 async function showCatFiles(id, nombre) {
@@ -1397,11 +1376,11 @@ async function showCatFiles(id, nombre) {
   document.getElementById('cat-files-card').style.display = '';
 }
 
-let catParentId = null;
 function openCatModal(id, parentId) {
-  catEditId = id || null; catColor = 'blue'; catParentId = parentId || null;
-  document.getElementById('mcat-title').textContent = id ? 'Editar categoria' : (parentId ? 'Nueva subcategoria' : 'Nueva categoria raiz');
+  catEditId = id || null; catColor = 'blue';
+  document.getElementById('mcat-title').textContent = id ? 'Editar categoría' : (parentId ? 'Nueva subcategoría' : 'Nueva categoría');
   document.querySelectorAll('.sw').forEach(s => s.classList.toggle('sel', s.dataset.c==='blue'));
+  populateParentSelect();
   const psel = document.getElementById('mc-parent');
   if (id) {
     const c = cats.find(x=>x.id===id); if(!c) return;
@@ -1410,7 +1389,6 @@ function openCatModal(id, parentId) {
     document.getElementById('mc-desc').value   = c.descripcion||'';
     document.getElementById('mc-orden').value  = c.orden;
     catColor = c.color || 'blue';
-    catParentId = c.parent_id || null;
     document.querySelectorAll('.sw').forEach(s => s.classList.toggle('sel', s.dataset.c===catColor));
     if (psel) psel.value = c.parent_id || '';
   } else {
@@ -1432,7 +1410,7 @@ async function saveCat() {
   const nombre = document.getElementById('mc-nombre').value.trim();
   if (!nombre) { const e=document.getElementById('mc-err'); e.textContent='Nombre obligatorio'; e.style.display='block'; return; }
   const psel = document.getElementById('mc-parent');
-  const parent_id = psel ? (psel.value ? parseInt(psel.value) : null) : catParentId;
+  const parent_id = psel.value ? parseInt(psel.value) : null;
   const body = {
     nombre, descripcion:document.getElementById('mc-desc').value,
     icono:document.getElementById('mc-icono').value||'📁',
@@ -1441,12 +1419,12 @@ async function saveCat() {
   };
   const res = catEditId ? await api('PUT',`/categorias/${catEditId}`,body) : await api('POST','/categorias',body);
   if (res?.error) { const e=document.getElementById('mc-err'); e.textContent=res.error; e.style.display='block'; return; }
-  closeModal('m-cat'); toast(catEditId?'Categoria actualizada ✓':'Categoria creada ✓');
+  closeModal('m-cat'); toast(catEditId?'Categoría actualizada ✓':'Categoría creada ✓');
   await renderCatsTab(); await loadCats(); await loadModels();
 }
 
 async function deleteCat(id) {
-  if (!confirm('?Eliminar? Solo es posible si no tiene modelos asignados.')) return;
+  if (!confirm('¿Eliminar esta categoría y sus subcategorías? Solo es posible si ninguna tiene modelos asignados.')) return;
   const res = await api('DELETE', `/categorias/${id}`);
   if (res?.error) { alert(res.error); return; }
   toast('Eliminada'); await renderCatsTab(); await loadCats(); await loadModels();
