@@ -225,6 +225,12 @@ def applyAllStyles(doc):
     addParaStyle(doc, 'ListaNum',    '12pt', mb='0.1cm', lh='170%',
                  color=GRIS_TEXTO)
 
+    # Tabla markdown genérica
+    addParaStyle(doc, 'MdTableHeadTxt', '10.5pt', bold=True, mb='0cm', lh='140%',
+                 font='Liberation Sans', color='#ffffff')
+    addParaStyle(doc, 'MdTableCellTxt', '11pt', mb='0cm', lh='150%',
+                 color=GRIS_TEXTO)
+
     # ── estilos de texto inline ──
     addTextStyle(doc, 'Bold',         bold=True)
     addTextStyle(doc, 'Italic',       italic=True)
@@ -326,12 +332,27 @@ def applyAllStyles(doc):
                       padding_left='0cm', padding_right='0cm',
                       padding_top='0cm', padding_bottom='0cm')
 
+    # Tabla markdown genérica (grid completo)
+    borde_md = f'0.4pt solid {GRIS_CLARO}'
+    addTableCellStyle(doc, 'TC_MdHead',
+                      bg=AZUL_INS,
+                      border_top=borde_md, border_bottom=borde_md,
+                      border_left=borde_md, border_right=borde_md,
+                      padding_left='0.25cm', padding_right='0.25cm',
+                      padding_top='0.18cm', padding_bottom='0.18cm')
+    addTableCellStyle(doc, 'TC_MdCell',
+                      border_top=borde_md, border_bottom=borde_md,
+                      border_left=borde_md, border_right=borde_md,
+                      padding_left='0.25cm', padding_right='0.25cm',
+                      padding_top='0.18cm', padding_bottom='0.18cm')
+
     # Estilos de tabla completa
     _addTableStyle(doc, 'TBL_Datos')
     _addTableStyle(doc, 'TBL_Eco')
     _addTableStyle(doc, 'TBL_Hdr')
     _addTableStyle(doc, 'TBL_Firma')
     _addTableStyle(doc, 'TBL_Aviso')
+    _addTableStyle(doc, 'TBL_Md')
 
 
 def _addTableStyle(doc, name):
@@ -454,15 +475,16 @@ def renderBlock(doc, token):
             p.addElement(sp)
             doc.text.addElement(p)
 
-    elif t in ('list', 'bullet_list'):
-        for item in children: renderListItem(doc, item, ordered=False)
-
-    elif t == 'ordered_list':
+    elif t in ('list', 'bullet_list', 'ordered_list'):
+        ordered = t == 'ordered_list' or attrs.get('ordered', False)
         for i, item in enumerate(children, 1):
-            renderListItem(doc, item, ordered=True, num=i)
+            renderListItem(doc, item, ordered=ordered, num=i)
 
     elif t == 'list_item':
         renderListItem(doc, token)
+
+    elif t == 'table':
+        renderTable(doc, token)
 
     elif t == 'block_quote':
         for c in children:
@@ -485,23 +507,53 @@ def renderBlock(doc, token):
             doc.text.addElement(p)
 
 
+def renderTable(doc, token):
+    """Renderiza un token mistune tipo 'table' (children: table_head, table_body)."""
+    head = next((c for c in token.get('children', []) if c.get('type') == 'table_head'), None)
+    body = next((c for c in token.get('children', []) if c.get('type') == 'table_body'), None)
+    head_cells = head.get('children', []) if head else []
+    body_rows = body.get('children', []) if body else []
+    n_cols = len(head_cells) or max((len(r.get('children', [])) for r in body_rows), default=0)
+    if n_cols == 0:
+        return
+    col_w = 16.5 / n_cols
+
+    def build_rows(tbl):
+        if head_cells:
+            cells = []
+            for hc in head_cells:
+                p = P(stylename='MdTableHeadTxt')
+                for ic in hc.get('children', []): renderStyledText(p, ic)
+                cells.append(mkCell('TC_MdHead', [p]))
+            tbl.addElement(mkRow(cells))
+        for row in body_rows:
+            cells = []
+            for rc in row.get('children', []):
+                p = P(stylename='MdTableCellTxt')
+                for ic in rc.get('children', []): renderStyledText(p, ic)
+                cells.append(mkCell('TC_MdCell', [p]))
+            tbl.addElement(mkRow(cells))
+
+    addTable(doc, 'TBL_Md', [col_w] * n_cols, build_rows)
+
+
 def renderListItem(doc, item, ordered=False, num=1):
     children = item.get('children', [])
     p = P(stylename='ListaBul' if not ordered else 'ListaNum')
     prefix = f'{num}. ' if ordered else '• '
     p.addText(prefix)
     for c in children:
-        if c.get('type') == 'paragraph':
+        if c.get('type') in ('paragraph', 'block_text'):
             for ic in c.get('children', []): renderStyledText(p, ic)
         elif c.get('type') == 'text':
             renderStyledText(p, c)
-        elif c.get('type') in ('list', 'bullet_list'):
+        elif c.get('type') in ('list', 'bullet_list', 'ordered_list'):
             doc.text.addElement(p)
             for sub in c.get('children', []):
                 sp = P(stylename='ListaBul')
                 sp.addText('   ◦ ')
                 for sc in sub.get('children', []):
-                    if sc.get('type') == 'paragraph':
+                    if sc.get('type') in ('paragraph', 'block_text'):
                         for ic in sc.get('children', []): renderStyledText(sp, ic)
                 doc.text.addElement(sp)
             return
@@ -847,7 +899,7 @@ def main():
     addTituloPrincipal(doc, title, subtitulo)
 
     # ── SECCIONES ──
-    md_parser = mistune.create_markdown(renderer=None)
+    md_parser = mistune.create_markdown(renderer=None, plugins=['table'])
 
     for sec in secciones:
         tipo = sec.get('tipo', 'texto')
