@@ -633,7 +633,7 @@ def addCabeceraInstitucional(doc, expediente, tipo_contrato):
             if s.getAttribute('name') == 'HdrRule':
                 exists = True
                 break
-        except ValueError:
+        except (ValueError, AttributeError):
             continue
     if not exists:
         doc.styles.addElement(rule_style)
