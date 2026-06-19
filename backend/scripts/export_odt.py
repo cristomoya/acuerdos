@@ -465,7 +465,7 @@ def renderBlock(doc, token):
         doc.text.addElement(p)
 
     elif t == 'blank_line':
-        doc.text.addElement(P(stylename='BodyText'))
+        pass
 
     elif t == 'block_code':
         for line in raw.splitlines():
@@ -495,9 +495,9 @@ def renderBlock(doc, token):
                 doc.text.addElement(p)
 
     elif t == 'thematic_break':
-        p = P(stylename='BodyText')
-        p.addText('─' * 60)
-        doc.text.addElement(p)
+        # restos de separadores de página del documento original (Word);
+        # este formato ya tiene sus propias reglas visuales (SeccionH2, TitleRule)
+        pass
 
     elif t == 'html':
         clean = re.sub(r'<[^>]+>', '', raw).strip()
