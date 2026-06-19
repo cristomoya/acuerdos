@@ -3,7 +3,7 @@ FROM node:20-alpine
 # python3 + odfpy + markdown-it + beautifulsoup4 + weasyprint for PDF/ODT export
 RUN apk add --no-cache python3 py3-pip make g++ weasyprint fontconfig ttf-dejavu && \
     fc-cache -f && \
-    pip3 install --break-system-packages odfpy markdown-it-py beautifulsoup4 pypdf
+    pip3 install --break-system-packages odfpy markdown-it-py beautifulsoup4 pypdf mistune
 WORKDIR /app
 COPY package.json ./
 RUN npm install --omit=dev
