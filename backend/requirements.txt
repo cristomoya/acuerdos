@@ -1,5 +1,6 @@
 weasyprint>=63.0
 markdown-it-py>=3.0
+mistune>=3.0
 beautifulsoup4>=4.12
 lxml>=5.0
 node-fetch>=3.3.2
