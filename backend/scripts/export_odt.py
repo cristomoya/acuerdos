@@ -235,8 +235,7 @@ def applyAllStyles(doc):
     addTextStyle(doc, 'Bold',         bold=True)
     addTextStyle(doc, 'Italic',       italic=True)
     addTextStyle(doc, 'BoldItalic',   bold=True, italic=True)
-    addTextStyle(doc, 'FieldMarker',  bg='#FFFF00', color='#0000CC',
-                 font='Liberation Mono', size='10pt')
+    addTextStyle(doc, 'FieldMarker',  bg='#FFFF00')
     addTextStyle(doc, 'CodeInline',   font='Liberation Mono', size='10pt',
                  bg='#F4F4F0')
     addTextStyle(doc, 'TextBold',     bold=True, color=GRIS_TEXTO)
