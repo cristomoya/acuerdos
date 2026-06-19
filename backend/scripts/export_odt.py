@@ -627,8 +627,14 @@ def addCabeceraInstitucional(doc, expediente, tipo_contrato):
     fo(rule_pp, 'padding-bottom', '0.05cm')
     rule_style.addElement(rule_pp)
     # verificar que no exista ya
-    exists = any(getattr(s, 'getAttribute', lambda x: None)('name') == 'HdrRule'
-                 for s in doc.styles.childNodes)
+    exists = False
+    for s in doc.styles.childNodes:
+        try:
+            if s.getAttribute('name') == 'HdrRule':
+                exists = True
+                break
+        except ValueError:
+            continue
     if not exists:
         doc.styles.addElement(rule_style)
     p_rule = P(stylename='HdrRule')
