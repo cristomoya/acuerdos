@@ -48,7 +48,7 @@ Estructura de secciones:
   ]
 """
 
-import sys, json, re, unicodedata
+import sys, os, json, re, unicodedata
 from copy import deepcopy
 
 import mistune
@@ -59,7 +59,14 @@ from odf.style import (Style, TextProperties, ParagraphProperties, PageLayout,
 from odf.element import Element
 from odf.text import P, Span, H, LineBreak
 from odf.table import Table, TableRow, TableCell, TableColumn
+from odf.draw import Frame, Image as DrawImage
 from odf.namespaces import STYLENS, FONS, TEXTNS, OFFICENS, TABLENS
+
+# Escudo institucional (icono recortado del logo oficial, sin el texto
+# "Ayuntamiento de Totana" que ya se compone como texto enriquecido).
+ASSETS_DIR  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
+ESCUDO_PATH = os.path.join(ASSETS_DIR, 'escudo_icon.png')
+ESCUDO_W_PX, ESCUDO_H_PX = 280, 254
 
 # ─── COLOR PALETTE (Manual de Identidad Corporativa, Ayuntamiento de Totana) ──
 # Color principal: azul corporativo #0075bf (CMYK 100 40 0 0 / RGB 0 117 191).
@@ -187,85 +194,85 @@ def addTableCellStyle(doc, name, bg=None, border_bottom=None,
 def applyAllStyles(doc):
     """Define todos los estilos de contenido."""
     # ── párrafos ──
-    addParaStyle(doc, 'BodyText',    '12pt', mb='0.25cm', lh='170%',
+    addParaStyle(doc, 'BodyText',    '10pt', mb='0.25cm', lh='170%',
                  color=GRIS_TEXTO)
-    addParaStyle(doc, 'BodySmall',   '10.5pt', mb='0.2cm', lh='160%',
+    addParaStyle(doc, 'BodySmall',   '8.5pt', mb='0.2cm', lh='160%',
                  color='#5b6470')
-    addParaStyle(doc, 'BodyNote',    '11pt', mb='0.15cm', lh='160%',
+    addParaStyle(doc, 'BodyNote',    '9pt', mb='0.15cm', lh='160%',
                  color='#5b6470')
 
     # Cabecera institución
-    addParaStyle(doc, 'InstNombre',  '16pt', bold=True, mb='0.1cm', mt='0cm',
+    addParaStyle(doc, 'InstNombre',  '14pt', bold=True, mb='0.1cm', mt='0cm',
                  font=FONT_SANS, color=AZUL_INS, lh='110%')
-    addParaStyle(doc, 'InstSubdep',  '9pt', mb='0.1cm', mt='0.1cm',
+    addParaStyle(doc, 'InstSubdep',  '7pt', mb='0.1cm', mt='0.1cm',
                  font=FONT_SANS, color=GRIS_LABEL, lh='110%')
-    addParaStyle(doc, 'InstDirec',   '9pt', mb='0cm', font=FONT_SANS,
+    addParaStyle(doc, 'InstDirec',   '7pt', mb='0cm', font=FONT_SANS,
                  color=GRIS_META, lh='110%')
 
     # Expediente box
-    addParaStyle(doc, 'ExpLabel',    '8pt', bold=True, mb='0cm', mt='0cm',
+    addParaStyle(doc, 'ExpLabel',    '6pt', bold=True, mb='0cm', mt='0cm',
                  font=FONT_SANS, color='#ffffff', lh='110%')
-    addParaStyle(doc, 'ExpNumero',   '17pt', bold=True, mb='0cm', mt='0.1cm',
+    addParaStyle(doc, 'ExpNumero',   '15pt', bold=True, mb='0cm', mt='0.1cm',
                  font=FONT_SANS, color=AZUL_INS, lh='100%')
-    addParaStyle(doc, 'ExpTipo',     '9pt', mb='0.1cm', mt='0cm',
+    addParaStyle(doc, 'ExpTipo',     '7pt', mb='0.1cm', mt='0cm',
                  font=FONT_SANS, color='#6b7280', lh='110%')
 
     # Título principal
-    addParaStyle(doc, 'DocSupratit', '9pt', mb='0.1cm', mt='0.8cm',
+    addParaStyle(doc, 'DocSupratit', '7pt', mb='0.1cm', mt='0.8cm',
                  font=FONT_SANS, color=GRIS_META, align='center',
                  lh='110%')
-    addParaStyle(doc, 'DocTitle',    '22pt', bold=True, mb='0.3cm', mt='0.2cm',
+    addParaStyle(doc, 'DocTitle',    '20pt', bold=True, mb='0.3cm', mt='0.2cm',
                  font=FONT_SANS, color=AZUL_INS, align='center',
                  lh='110%')
     addParaStyle(doc, 'TitleRule',   '3pt', mb='0.5cm', mt='0cm',
                  align='center', color=AZUL_INS)
 
     # H2 sección (uppercase, borde inferior azul)
-    addParaStyle(doc, 'SeccionH2',   '9.5pt', bold=True, mb='0cm', mt='0.7cm',
+    addParaStyle(doc, 'SeccionH2',   '7.5pt', bold=True, mb='0cm', mt='0.7cm',
                  font=FONT_SANS, color=AZUL_INS, lh='110%',
                  border_bottom=f'0.75pt solid {AZUL_INS}')
 
     # Tabla datos — etiqueta
-    addParaStyle(doc, 'TabLabel',    '9pt', bold=True, mb='0cm',
+    addParaStyle(doc, 'TabLabel',    '7pt', bold=True, mb='0cm',
                  font=FONT_SANS, color=GRIS_LABEL, lh='130%')
     # Tabla datos — valor
-    addParaStyle(doc, 'TabValor',    '11.5pt', mb='0cm', lh='150%',
+    addParaStyle(doc, 'TabValor',    '9.5pt', mb='0cm', lh='150%',
                  color=GRIS_TEXTO)
-    addParaStyle(doc, 'TabValorBold','11.5pt', bold=True, mb='0cm', lh='150%',
+    addParaStyle(doc, 'TabValorBold','9.5pt', bold=True, mb='0cm', lh='150%',
                  color=GRIS_TEXTO)
     # Tabla económica
-    addParaStyle(doc, 'EcoLabel',    '11.5pt', mb='0cm', lh='140%',
+    addParaStyle(doc, 'EcoLabel',    '9.5pt', mb='0cm', lh='140%',
                  color='#3a4150')
-    addParaStyle(doc, 'EcoValor',    '11.5pt', bold=True, mb='0cm', lh='140%',
+    addParaStyle(doc, 'EcoValor',    '9.5pt', bold=True, mb='0cm', lh='140%',
                  font=FONT_SANS, color=GRIS_TEXTO, align='end')
-    addParaStyle(doc, 'EcoTotalLab', '11.5pt', bold=True, mb='0cm', lh='140%',
+    addParaStyle(doc, 'EcoTotalLab', '9.5pt', bold=True, mb='0cm', lh='140%',
                  font=FONT_SANS, color=AZUL_INS)
-    addParaStyle(doc, 'EcoTotalVal', '13pt', bold=True, mb='0cm', lh='140%',
+    addParaStyle(doc, 'EcoTotalVal', '11pt', bold=True, mb='0cm', lh='140%',
                  font=FONT_SANS, color=AZUL_INS, align='end')
 
     # Callout aviso
     # AvisoText: el borde izquierdo se gestiona via estilo de celda TC_AvisoLeft
 
     # Firma / pie
-    addParaStyle(doc, 'FirmaTit',    '8pt', bold=True, mb='0cm', mt='0.2cm',
+    addParaStyle(doc, 'FirmaTit',    '6pt', bold=True, mb='0cm', mt='0.2cm',
                  font=FONT_SANS, color=AZUL_INS, align='center', lh='110%')
-    addParaStyle(doc, 'FirmaSubt',   '9.5pt', mb='0cm', mt='0.1cm',
+    addParaStyle(doc, 'FirmaSubt',   '7.5pt', mb='0cm', mt='0.1cm',
                  color=GRIS_META, align='center', lh='110%')
-    addParaStyle(doc, 'CSVLabel',    '7.5pt', bold=False, mb='0.05cm',
+    addParaStyle(doc, 'CSVLabel',    '5.5pt', bold=False, mb='0.05cm',
                  font=FONT_SANS, color=GRIS_META, lh='110%')
-    addParaStyle(doc, 'CSVCode',     '9.5pt', mb='0cm',
+    addParaStyle(doc, 'CSVCode',     '7.5pt', mb='0cm',
                  font=FONT_MONO, color='#3a4150', lh='110%')
 
     # Listas
-    addParaStyle(doc, 'ListaBul',    '12pt', mb='0.1cm', lh='170%',
+    addParaStyle(doc, 'ListaBul',    '10pt', mb='0.1cm', lh='170%',
                  color=GRIS_TEXTO)
-    addParaStyle(doc, 'ListaNum',    '12pt', mb='0.1cm', lh='170%',
+    addParaStyle(doc, 'ListaNum',    '10pt', mb='0.1cm', lh='170%',
                  color=GRIS_TEXTO)
 
     # Tabla markdown genérica
-    addParaStyle(doc, 'MdTableHeadTxt', '10.5pt', bold=True, mb='0cm', lh='140%',
+    addParaStyle(doc, 'MdTableHeadTxt', '8.5pt', bold=True, mb='0cm', lh='140%',
                  font=FONT_SANS, color='#ffffff')
-    addParaStyle(doc, 'MdTableCellTxt', '11pt', mb='0cm', lh='150%',
+    addParaStyle(doc, 'MdTableCellTxt', '9pt', mb='0cm', lh='150%',
                  color=GRIS_TEXTO)
 
     # ── estilos de texto inline ──
@@ -273,7 +280,7 @@ def applyAllStyles(doc):
     addTextStyle(doc, 'Italic',       italic=True)
     addTextStyle(doc, 'BoldItalic',   bold=True, italic=True)
     addTextStyle(doc, 'FieldMarker',  bg='#FFFF00')
-    addTextStyle(doc, 'CodeInline',   font=FONT_MONO, size='10pt',
+    addTextStyle(doc, 'CodeInline',   font=FONT_MONO, size='8pt',
                  bg='#F4F4F0')
     addTextStyle(doc, 'TextBold',     bold=True, color=GRIS_TEXTO)
     addTextStyle(doc, 'TextNaranja',  bold=True,
@@ -687,9 +694,9 @@ def mkRow(cells):
     return tr
 
 
-def addTable(doc, style_name, col_widths_cm, rows_fn):
+def buildTable(doc, style_name, col_widths_cm, rows_fn):
     """
-    Añade una tabla al documento.
+    Construye una tabla (sin añadirla al documento todavía).
     col_widths_cm: lista de anchos en cm (ej. [5.5, 11.0])
     rows_fn: función que recibe la tabla y añade filas
     """
@@ -711,7 +718,12 @@ def addTable(doc, style_name, col_widths_cm, rows_fn):
         tbl.addElement(col)
 
     rows_fn(tbl)
-    doc.text.addElement(tbl)
+    return tbl
+
+
+def addTable(doc, style_name, col_widths_cm, rows_fn):
+    """Construye una tabla y la añade al documento."""
+    doc.text.addElement(buildTable(doc, style_name, col_widths_cm, rows_fn))
 
 
 # ─── SECCIÓN: CABECERA INSTITUCIONAL ─────────────────────────────────────────
@@ -732,7 +744,11 @@ def addCabeceraInstitucional(doc, expediente, tipo_contrato,
 
     if expediente:
         def build_rows(tbl):
-            tc_inst = mkCell('TC_Bare', inst_block)
+            tbl_inst = buildEscudoConNombreTable(doc, inst_block,
+                                                  col_icon_cm=2.0, total_w_cm=10.5)
+            tc_inst = TableCell()
+            st(tc_inst, 'style-name', 'TC_Bare')
+            tc_inst.addElement(tbl_inst)
 
             # tabla interna para la caja de expediente
             tbl_exp = Table()
@@ -763,8 +779,7 @@ def addCabeceraInstitucional(doc, expediente, tipo_contrato,
 
         addTable(doc, 'TBL_Hdr', [10.5, 6.0], build_rows)
     else:
-        for p in inst_block:
-            doc.text.addElement(p)
+        addEscudoConNombre(doc, inst_block)
 
     addHeaderRule(doc)
 
@@ -791,6 +806,43 @@ def addHeaderRule(doc):
         rule_style.addElement(rule_pp)
         doc.styles.addElement(rule_style)
     doc.text.addElement(P(stylename='HdrRule'))
+
+
+def _escudoIconParagraph(doc, icon_height_cm=1.5):
+    """Párrafo con el icono del escudo institucional incrustado (frame
+    en línea, tamaño proporcional al recorte de assets/escudo_icon.png)."""
+    href = doc.addPicture(ESCUDO_PATH)
+    icon_w_cm = icon_height_cm * (ESCUDO_W_PX / ESCUDO_H_PX)
+    frame = Frame(width=f'{icon_w_cm:.2f}cm', height=f'{icon_height_cm}cm',
+                  anchortype='as-char')
+    frame.addElement(DrawImage(href=href))
+    p = P(stylename='BodyText')
+    p.addElement(frame)
+    return p
+
+
+def buildEscudoConNombreTable(doc, nombre_paragraphs, icon_height_cm=1.5,
+                               col_icon_cm=2.3, total_w_cm=16.5):
+    """Construye (sin insertar en el documento) la tabla de cabecera con el
+    escudo a la izquierda y el nombre de la institución (+ subdepartamento/
+    dirección) a la derecha — variación "en bandera izquierda" del manual de
+    identidad (sec. 2.8), la recomendada para cabeceras."""
+    p_icon = _escudoIconParagraph(doc, icon_height_cm)
+
+    def build_rows(tbl):
+        tbl.addElement(mkRow([mkCell('TC_Bare', [p_icon]),
+                               mkCell('TC_Bare', nombre_paragraphs)]))
+
+    return buildTable(doc, 'TBL_Hdr', [col_icon_cm, total_w_cm - col_icon_cm],
+                       build_rows)
+
+
+def addEscudoConNombre(doc, nombre_paragraphs, icon_height_cm=1.5,
+                        col_icon_cm=2.3, total_w_cm=16.5):
+    """Añade al documento la cabecera con escudo + nombre (ver
+    buildEscudoConNombreTable)."""
+    doc.text.addElement(buildEscudoConNombreTable(
+        doc, nombre_paragraphs, icon_height_cm, col_icon_cm, total_w_cm))
 
 
 # ─── SECCIÓN: TÍTULO PRINCIPAL ────────────────────────────────────────────────
@@ -884,7 +936,7 @@ def _ensureAvisoStyle(doc):
         fo(pp, 'line-height',    '160%')
         s.addElement(pp)
         tp = TextProperties()
-        fo(tp, 'font-size', '11pt')
+        fo(tp, 'font-size', '9pt')
         fo(tp, 'color', AZUL_OSCURO)
         fo(tp, 'font-family', FONT_SANS)
         s.addElement(tp)
@@ -1005,18 +1057,19 @@ def renderDocumentBody(doc, tokens):
                 first_heading_done = True
                 p = P(stylename='InstNombre')
                 for c in token.get('children', []): renderStyledText(p, c)
-                doc.text.addElement(p)
+                nombre_paragraphs = [p]
 
                 j = i + 1
                 if (j < n and tokens[j].get('type') == 'paragraph'
                         and len(_plainText(tokens[j])) <= 80):
                     sp = P(stylename='InstSubdep')
                     for c in tokens[j].get('children', []): renderStyledText(sp, c)
-                    doc.text.addElement(sp)
+                    nombre_paragraphs.append(sp)
                     i = j + 1
                 else:
                     i += 1
 
+                addEscudoConNombre(doc, nombre_paragraphs)
                 addHeaderRule(doc)
                 continue
 
