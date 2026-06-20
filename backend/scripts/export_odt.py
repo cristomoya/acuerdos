@@ -267,9 +267,9 @@ def applyAllStyles(doc):
 
     # Listas
     addParaStyle(doc, 'ListaBul',    '10pt', mb='0.1cm', lh='170%',
-                 color=GRIS_TEXTO)
+                 color=GRIS_TEXTO, text_indent='1.2cm')
     addParaStyle(doc, 'ListaNum',    '10pt', mb='0.1cm', lh='170%',
-                 color=GRIS_TEXTO)
+                 color=GRIS_TEXTO, text_indent='1.2cm')
 
     # Tabla markdown genérica
     addParaStyle(doc, 'MdTableHeadTxt', '8.5pt', bold=True, mb='0cm', lh='140%',
