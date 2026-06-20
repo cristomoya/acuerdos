@@ -132,13 +132,15 @@ def tbl(el, attr, val):
 def addParaStyle(doc, name, size="12pt", bold=False, italic=False,
                  align="start", mb="0.2cm", mt="0cm",
                  font=FONT_SANS, lh="150%",
-                 color=None, border_bottom=None):
+                 color=None, border_bottom=None, text_indent=None):
     s = Style(name=name, family="paragraph")
     pp = ParagraphProperties()
     fo(pp, 'text-align', align)
     fo(pp, 'margin-bottom', mb)
     fo(pp, 'margin-top', mt)
     fo(pp, 'line-height', lh)
+    if text_indent:
+        fo(pp, 'text-indent', text_indent)
     if border_bottom:
         # border-bottom: grosor estilo color (ej. "0.5pt solid #1f3a5f")
         fo(pp, 'border-bottom', border_bottom)
@@ -194,8 +196,8 @@ def addTableCellStyle(doc, name, bg=None, border_bottom=None,
 def applyAllStyles(doc):
     """Define todos los estilos de contenido."""
     # ── párrafos ──
-    addParaStyle(doc, 'BodyText',    '10pt', mb='0.25cm', lh='170%',
-                 color=GRIS_TEXTO)
+    addParaStyle(doc, 'BodyText',    '10pt', mb='0.25cm', lh='100%',
+                 color=GRIS_TEXTO, text_indent='1.2cm')
     addParaStyle(doc, 'BodySmall',   '8.5pt', mb='0.2cm', lh='160%',
                  color='#5b6470')
     addParaStyle(doc, 'BodyNote',    '9pt', mb='0.15cm', lh='160%',
@@ -228,7 +230,7 @@ def applyAllStyles(doc):
                  align='center', color=AZUL_INS)
 
     # H2 sección (uppercase, borde inferior azul)
-    addParaStyle(doc, 'SeccionH2',   '7.5pt', bold=True, mb='0cm', mt='0.7cm',
+    addParaStyle(doc, 'SeccionH2',   '10pt', bold=True, mb='0.3cm', mt='0.7cm',
                  font=FONT_SANS, color=AZUL_INS, lh='110%',
                  border_bottom=f'0.75pt solid {AZUL_INS}')
 
