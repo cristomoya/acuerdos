@@ -132,7 +132,9 @@ def tbl(el, attr, val):
 def addParaStyle(doc, name, size="12pt", bold=False, italic=False,
                  align="start", mb="0.2cm", mt="0cm",
                  font=FONT_SANS, lh="150%", weight=None,
-                 color=None, border_bottom=None, text_indent=None):
+                 color=None, border_bottom=None, text_indent=None,
+                 bg=None, padding_top=None, padding_bottom=None,
+                 padding_left=None, padding_right=None):
     s = Style(name=name, family="paragraph")
     pp = ParagraphProperties()
     fo(pp, 'text-align', align)
@@ -145,6 +147,15 @@ def addParaStyle(doc, name, size="12pt", bold=False, italic=False,
         # border-bottom: grosor estilo color (ej. "0.5pt solid #1f3a5f")
         fo(pp, 'border-bottom', border_bottom)
         fo(pp, 'padding-bottom', '0.15cm')
+    if bg:
+        # Fondo de color en el propio párrafo, no en la celda: en esta versión
+        # de LibreOffice el background-color de table-cell no se exporta a
+        # PDF de forma fiable, pero el del párrafo sí.
+        fo(pp, 'background-color', bg)
+    if padding_top:    fo(pp, 'padding-top', padding_top)
+    if padding_bottom: fo(pp, 'padding-bottom', padding_bottom)
+    if padding_left:   fo(pp, 'padding-left', padding_left)
+    if padding_right:  fo(pp, 'padding-right', padding_right)
     s.addElement(pp)
     tp = TextProperties()
     fo(tp, 'font-size', size)
@@ -178,12 +189,16 @@ def addTableCellStyle(doc, name, bg=None, border_bottom=None,
                        border_left=None, border_right=None):
     s = Style(name=name, family="table-cell")
     tcp = TableCellProperties()
-    if bg:            fo(tcp, 'background-color', bg)
-    if border_bottom: fo(tcp, 'border-bottom', border_bottom)
-    if border_top:    fo(tcp, 'border-top', border_top)
-    if border_left:   fo(tcp, 'border-left', border_left)
-    if border_right:  fo(tcp, 'border-right', border_right)
-    if not any([border_bottom, border_top, border_left, border_right]):
+    if bg: fo(tcp, 'background-color', bg)
+    # Si se especifica algún lado del borde, hay que fijar los 4 lados
+    # explícitamente (aunque sea a 'none'): dejar alguno sin definir hace que
+    # LibreOffice ignore el background-color de la celda al exportar a PDF.
+    if any([border_bottom, border_top, border_left, border_right]):
+        fo(tcp, 'border-bottom', border_bottom or 'none')
+        fo(tcp, 'border-top',    border_top or 'none')
+        fo(tcp, 'border-left',   border_left or 'none')
+        fo(tcp, 'border-right',  border_right or 'none')
+    else:
         fo(tcp, 'border', 'none')
     fo(tcp, 'padding-top',    padding_top)
     fo(tcp, 'padding-bottom', padding_bottom)
@@ -214,7 +229,9 @@ def applyAllStyles(doc):
 
     # Expediente box
     addParaStyle(doc, 'ExpLabel',    '6pt', bold=True, mb='0cm', mt='0cm',
-                 font=FONT_SANS, color='#ffffff', lh='110%')
+                 font=FONT_SANS, color='#ffffff', lh='110%',
+                 bg=AZUL_INS, padding_top='0.12cm', padding_bottom='0.12cm',
+                 padding_left='0.3cm', padding_right='0.3cm')
     addParaStyle(doc, 'ExpNumero',   '15pt', bold=True, mb='0cm', mt='0.1cm',
                  font=FONT_SANS, color=AZUL_INS, lh='100%')
     addParaStyle(doc, 'ExpTipo',     '7pt', mb='0.1cm', mt='0cm',
@@ -243,15 +260,37 @@ def applyAllStyles(doc):
                  color=GRIS_TEXTO)
     addParaStyle(doc, 'TabValorBold','9.5pt', bold=True, mb='0cm', lh='150%',
                  color=GRIS_TEXTO)
+    # Tabla datos — primera fila (color oficial, texto blanco)
+    addParaStyle(doc, 'TabLabelHead', '7pt', bold=True, mb='0cm',
+                 font=FONT_SANS, color='#ffffff', lh='130%',
+                 bg=AZUL_INS, padding_top='0.22cm', padding_bottom='0.22cm',
+                 padding_left='0.25cm', padding_right='0.1cm')
+    addParaStyle(doc, 'TabValorHead', '9.5pt', bold=True, mb='0cm', lh='150%',
+                 color='#ffffff',
+                 bg=AZUL_INS, padding_top='0.22cm', padding_bottom='0.22cm',
+                 padding_left='0.1cm', padding_right='0.25cm')
     # Tabla económica
     addParaStyle(doc, 'EcoLabel',    '9.5pt', mb='0cm', lh='140%',
                  color='#3a4150')
     addParaStyle(doc, 'EcoValor',    '9.5pt', bold=True, mb='0cm', lh='140%',
                  font=FONT_SANS, color=GRIS_TEXTO, align='end')
     addParaStyle(doc, 'EcoTotalLab', '9.5pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SANS, color=AZUL_INS)
+                 font=FONT_SANS, color=AZUL_INS,
+                 bg=GRIS_BG, padding_top='0.25cm', padding_bottom='0.25cm',
+                 padding_left='0.35cm', padding_right='0.1cm')
     addParaStyle(doc, 'EcoTotalVal', '11pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SANS, color=AZUL_INS, align='end')
+                 font=FONT_SANS, color=AZUL_INS, align='end',
+                 bg=GRIS_BG, padding_top='0.25cm', padding_bottom='0.25cm',
+                 padding_left='0.1cm', padding_right='0.35cm')
+    # Tabla económica — primera fila (color oficial, texto blanco)
+    addParaStyle(doc, 'EcoLabelHead', '9.5pt', bold=True, mb='0cm', lh='140%',
+                 font=FONT_SANS, color='#ffffff',
+                 bg=AZUL_INS, padding_top='0.2cm', padding_bottom='0.2cm',
+                 padding_left='0.35cm', padding_right='0.1cm')
+    addParaStyle(doc, 'EcoValorHead', '9.5pt', bold=True, mb='0cm', lh='140%',
+                 font=FONT_SANS, color='#ffffff', align='end',
+                 bg=AZUL_INS, padding_top='0.2cm', padding_bottom='0.2cm',
+                 padding_left='0.1cm', padding_right='0.35cm')
 
     # Callout aviso
     # AvisoText: el borde izquierdo se gestiona via estilo de celda TC_AvisoLeft
@@ -274,7 +313,9 @@ def applyAllStyles(doc):
 
     # Tabla markdown genérica
     addParaStyle(doc, 'MdTableHeadTxt', '8.5pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SANS, color='#ffffff')
+                 font=FONT_SANS, color='#ffffff',
+                 bg=AZUL_INS, padding_top='0.18cm', padding_bottom='0.18cm',
+                 padding_left='0.25cm', padding_right='0.25cm')
     addParaStyle(doc, 'MdTableCellTxt', '9pt', mb='0cm', lh='150%',
                  color=GRIS_TEXTO)
 
@@ -308,6 +349,16 @@ def applyAllStyles(doc):
     addTableCellStyle(doc, 'TC_ValorLast',
                       padding_bottom='0.22cm', padding_top='0.22cm',
                       padding_left='0cm', padding_right='0cm')
+    # Tabla datos — primera fila (color oficial). El fondo va en el estilo
+    # de párrafo (TabLabelHead/TabValorHead): el de la celda no se exporta a
+    # PDF de forma fiable en esta versión de LibreOffice. La celda se deja
+    # sin relleno propio para que el del párrafo llegue hasta el borde.
+    addTableCellStyle(doc, 'TC_LabelHead',
+                      padding_bottom='0cm', padding_top='0cm',
+                      padding_left='0cm', padding_right='0cm')
+    addTableCellStyle(doc, 'TC_ValorHead',
+                      padding_bottom='0cm', padding_top='0cm',
+                      padding_left='0cm', padding_right='0cm')
 
     # Tabla económica (con borde exterior)
     borde_eco = f'0.4pt solid {GRIS_CLARO}'
@@ -321,16 +372,21 @@ def applyAllStyles(doc):
                       border_top='none', border_left='none', border_right='none',
                       padding_left='0.35cm', padding_right='0.35cm',
                       padding_top='0.2cm', padding_bottom='0.2cm')
+    # Tabla económica — primera fila (color oficial; fondo en el párrafo,
+    # ver nota en TC_LabelHead más arriba)
+    addTableCellStyle(doc, 'TC_EcoLabelHead',
+                      padding_left='0cm', padding_right='0cm',
+                      padding_top='0cm', padding_bottom='0cm')
+    addTableCellStyle(doc, 'TC_EcoValorHead',
+                      padding_left='0cm', padding_right='0cm',
+                      padding_top='0cm', padding_bottom='0cm')
+    # El fondo va en el párrafo (EcoTotalLab/EcoTotalVal), ver nota en TC_LabelHead
     addTableCellStyle(doc, 'TC_EcoTotalLabel',
-                      bg=GRIS_BG, border_bottom='none',
-                      border_top='none', border_left='none', border_right='none',
-                      padding_left='0.35cm', padding_right='0.35cm',
-                      padding_top='0.25cm', padding_bottom='0.25cm')
+                      padding_left='0cm', padding_right='0cm',
+                      padding_top='0cm', padding_bottom='0cm')
     addTableCellStyle(doc, 'TC_EcoTotalValor',
-                      bg=GRIS_BG, border_bottom='none',
-                      border_top='none', border_left='none', border_right='none',
-                      padding_left='0.35cm', padding_right='0.35cm',
-                      padding_top='0.25cm', padding_bottom='0.25cm')
+                      padding_left='0cm', padding_right='0cm',
+                      padding_top='0cm', padding_bottom='0cm')
 
     # Cabecera institucional
     addTableCellStyle(doc, 'TC_Hdr',
@@ -344,12 +400,12 @@ def applyAllStyles(doc):
                       border_right=f'0.4pt solid {GRIS_CLARO}',
                       padding_left='0.3cm', padding_right='0.3cm',
                       padding_top='0cm', padding_bottom='0.2cm')
+    # El fondo va en el párrafo (ExpLabel), ver nota en TC_LabelHead
     addTableCellStyle(doc, 'TC_ExpBoxLabel',
-                      bg=AZUL_INS,
                       border_top='none', border_bottom='none',
                       border_left='none', border_right='none',
-                      padding_left='0.3cm', padding_right='0.3cm',
-                      padding_top='0.12cm', padding_bottom='0.12cm')
+                      padding_left='0cm', padding_right='0cm',
+                      padding_top='0cm', padding_bottom='0cm')
 
     # Callout aviso (azul corporativo, sin colores ajenos a la marca)
     addTableCellStyle(doc, 'TC_AvisoLeft',
@@ -380,12 +436,12 @@ def applyAllStyles(doc):
 
     # Tabla markdown genérica (grid completo)
     borde_md = f'0.4pt solid {GRIS_CLARO}'
+    # El fondo va en el párrafo (MdTableHeadTxt), ver nota en TC_LabelHead
     addTableCellStyle(doc, 'TC_MdHead',
-                      bg=AZUL_INS,
                       border_top=borde_md, border_bottom=borde_md,
                       border_left=borde_md, border_right=borde_md,
-                      padding_left='0.25cm', padding_right='0.25cm',
-                      padding_top='0.18cm', padding_bottom='0.18cm')
+                      padding_left='0cm', padding_right='0cm',
+                      padding_top='0cm', padding_bottom='0cm')
     addTableCellStyle(doc, 'TC_MdCell',
                       border_top=borde_md, border_bottom=borde_md,
                       border_left=borde_md, border_right=borde_md,
@@ -618,11 +674,12 @@ def renderKeyValueTable(doc, label_cells, value_cells):
     if is_economic:
         def build_rows(tbl):
             for i in range(n):
+                is_head = (i == 0)
                 is_total = 'total' in label_norm[i]
-                lc = 'TC_EcoTotalLabel' if is_total else 'TC_EcoLabel'
-                vc = 'TC_EcoTotalValor' if is_total else 'TC_EcoValor'
-                lp = 'EcoTotalLab' if is_total else 'EcoLabel'
-                vp = 'EcoTotalVal' if is_total else 'EcoValor'
+                lc = 'TC_EcoLabelHead' if is_head else ('TC_EcoTotalLabel' if is_total else 'TC_EcoLabel')
+                vc = 'TC_EcoValorHead' if is_head else ('TC_EcoTotalValor' if is_total else 'TC_EcoValor')
+                lp = 'EcoLabelHead' if is_head else ('EcoTotalLab' if is_total else 'EcoLabel')
+                vp = 'EcoValorHead' if is_head else ('EcoTotalVal' if is_total else 'EcoValor')
                 p_l = P(stylename=lp)
                 for c in label_cells[i]: renderStyledText(p_l, c)
                 p_v = P(stylename=vp)
@@ -632,11 +689,14 @@ def renderKeyValueTable(doc, label_cells, value_cells):
     else:
         def build_rows(tbl):
             for i in range(n):
+                is_head = (i == 0)
                 is_last = (i == n - 1)
-                lc = 'TC_LabelLast' if is_last else 'TC_Label'
-                vc = 'TC_ValorLast' if is_last else 'TC_Valor'
-                p_l = mkP('TabLabel', _plainText(label_cells[i]).upper())
-                p_v = P(stylename='TabValor')
+                lc = 'TC_LabelHead' if is_head else ('TC_LabelLast' if is_last else 'TC_Label')
+                vc = 'TC_ValorHead' if is_head else ('TC_ValorLast' if is_last else 'TC_Valor')
+                lp = 'TabLabelHead' if is_head else 'TabLabel'
+                vp = 'TabValorHead' if is_head else 'TabValor'
+                p_l = mkP(lp, _plainText(label_cells[i]).upper())
+                p_v = P(stylename=vp)
                 for c in value_cells[i]: renderStyledText(p_v, c)
                 tbl.addElement(mkRow([mkCell(lc, [p_l]), mkCell(vc, [p_v])]))
         addTable(doc, 'TBL_Datos', [5.6, 10.9], build_rows)
@@ -683,7 +743,7 @@ def mkP(style, text='', bold_span=False):
 def mkCell(style, children=None):
     """Crea una TableCell con estilo."""
     tc = TableCell()
-    st(tc, 'style-name', style)
+    tbl(tc, 'style-name', style)
     if children:
         for ch in children:
             tc.addElement(ch)
@@ -703,8 +763,8 @@ def buildTable(doc, style_name, col_widths_cm, rows_fn):
     col_widths_cm: lista de anchos en cm (ej. [5.5, 11.0])
     rows_fn: función que recibe la tabla y añade filas
     """
-    tbl = Table()
-    st(tbl, 'style-name', style_name)
+    table_el = Table()
+    tbl(table_el, 'style-name', style_name)
 
     for w in col_widths_cm:
         col = TableColumn()
@@ -717,11 +777,11 @@ def buildTable(doc, style_name, col_widths_cm, rows_fn):
             st(tcp, 'column-width', f'{w}cm')
             s.addElement(tcp)
             doc.automaticstyles.addElement(s)
-        st(col, 'style-name', col_style)
-        tbl.addElement(col)
+        tbl(col, 'style-name', col_style)
+        table_el.addElement(col)
 
-    rows_fn(tbl)
-    return tbl
+    rows_fn(table_el)
+    return table_el
 
 
 def addTable(doc, style_name, col_widths_cm, rows_fn):
@@ -746,16 +806,16 @@ def addCabeceraInstitucional(doc, expediente, tipo_contrato,
     ]
 
     if expediente:
-        def build_rows(tbl):
+        def build_rows(outer_tbl):
             tbl_inst = buildEscudoConNombreTable(doc, inst_block,
                                                   col_icon_cm=2.0, total_w_cm=10.5)
             tc_inst = TableCell()
-            st(tc_inst, 'style-name', 'TC_Bare')
+            tbl(tc_inst, 'style-name', 'TC_Bare')
             tc_inst.addElement(tbl_inst)
 
             # tabla interna para la caja de expediente
             tbl_exp = Table()
-            st(tbl_exp, 'style-name', 'TBL_Datos')
+            tbl(tbl_exp, 'style-name', 'TBL_Datos')
 
             col_exp = TableColumn()
             col_style = 'ColW_5_5'
@@ -766,7 +826,7 @@ def addCabeceraInstitucional(doc, expediente, tipo_contrato,
                 st(tcp2, 'column-width', '5.5cm')
                 s2.addElement(tcp2)
                 doc.automaticstyles.addElement(s2)
-            st(col_exp, 'style-name', col_style)
+            tbl(col_exp, 'style-name', col_style)
             tbl_exp.addElement(col_exp)
             tbl_exp.addElement(mkRow([mkCell('TC_ExpBoxLabel', [mkP('ExpLabel', 'EXPEDIENTE')])]))
             tbl_exp.addElement(mkRow([mkCell('TC_ExpBox', [
@@ -775,10 +835,10 @@ def addCabeceraInstitucional(doc, expediente, tipo_contrato,
             ])]))
 
             tc_exp = TableCell()
-            st(tc_exp, 'style-name', 'TC_Bare')
+            tbl(tc_exp, 'style-name', 'TC_Bare')
             tc_exp.addElement(tbl_exp)
 
-            tbl.addElement(mkRow([tc_inst, tc_exp]))
+            outer_tbl.addElement(mkRow([tc_inst, tc_exp]))
 
         addTable(doc, 'TBL_Hdr', [10.5, 6.0], build_rows)
     else:
@@ -879,13 +939,16 @@ def addTablaDatos(doc, filas, titulo=None, col_label_pct=0.34):
 
     def build_rows(tbl):
         for i, (label, valor) in enumerate(filas):
+            is_head = (i == 0)
             is_last = (i == n - 1)
-            lc = 'TC_LabelLast' if is_last else 'TC_Label'
-            vc = 'TC_ValorLast' if is_last else 'TC_Valor'
+            lc = 'TC_LabelHead' if is_head else ('TC_LabelLast' if is_last else 'TC_Label')
+            vc = 'TC_ValorHead' if is_head else ('TC_ValorLast' if is_last else 'TC_Valor')
+            lp = 'TabLabelHead' if is_head else 'TabLabel'
             # ¿valor en negrita? (si la clave contiene "importe" o "valor")
-            v_style = 'TabValorBold' if any(k in label.lower() for k in
-                      ['importe', 'valor estimado', 'precio']) else 'TabValor'
-            tc_l = mkCell(lc, [mkP('TabLabel', label.upper())])
+            v_style = 'TabValorHead' if is_head else (
+                      'TabValorBold' if any(k in label.lower() for k in
+                      ['importe', 'valor estimado', 'precio']) else 'TabValor')
+            tc_l = mkCell(lc, [mkP(lp, label.upper())])
             tc_v = mkCell(vc, [mkP(v_style, valor)])
             tbl.addElement(mkRow([tc_l, tc_v]))
 
@@ -899,12 +962,13 @@ def addTablaEconomica(doc, filas):
     se renderiza con fondo azul oscuro."""
 
     def build_rows(tbl):
-        for label, valor in filas:
+        for i, (label, valor) in enumerate(filas):
+            is_head = (i == 0)
             is_total = label.lower() == 'total'
-            lc = 'TC_EcoTotalLabel' if is_total else 'TC_EcoLabel'
-            vc = 'TC_EcoTotalValor' if is_total else 'TC_EcoValor'
-            lp = 'EcoTotalLab' if is_total else 'EcoLabel'
-            vp = 'EcoTotalVal' if is_total else 'EcoValor'
+            lc = 'TC_EcoLabelHead' if is_head else ('TC_EcoTotalLabel' if is_total else 'TC_EcoLabel')
+            vc = 'TC_EcoValorHead' if is_head else ('TC_EcoTotalValor' if is_total else 'TC_EcoValor')
+            lp = 'EcoLabelHead' if is_head else ('EcoTotalLab' if is_total else 'EcoLabel')
+            vp = 'EcoValorHead' if is_head else ('EcoTotalVal' if is_total else 'EcoValor')
             tc_l = mkCell(lc, [mkP(lp, label if not is_total else 'Importe total (IVA incluido)')])
             tc_v = mkCell(vc, [mkP(vp, valor)])
             tbl.addElement(mkRow([tc_l, tc_v]))
