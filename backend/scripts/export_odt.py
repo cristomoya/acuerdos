@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-export_odt.py — Genera documentos ODT de contratación municipal con maquetación
-similar a la plantilla visual del Ayuntamiento de Totana.
+export_odt.py — Genera documentos ODT de contratación municipal con el formato
+institucional fijo (cabecera con membrete, caja de expediente, tablas de datos/
+económica, aviso y firma). El documento se construye siempre desde cero: no se
+admite ni se usa ninguna plantilla .odt/.ott externa.
 
 Usage:
-  python3 export_odt.py <input.json> <output.odt> [template.ott]
+  python3 export_odt.py <input.json> <output.odt>
 
 Campos input.json:
   title         : título del documento (ej. "INVITACIÓN A PRESENTAR OFERTA")
@@ -46,11 +48,11 @@ Estructura de secciones:
   ]
 """
 
-import sys, json, re, os
+import sys, json, re, unicodedata
 from copy import deepcopy
 
 import mistune
-from odf.opendocument import OpenDocumentText, load
+from odf.opendocument import OpenDocumentText
 from odf.style import (Style, TextProperties, ParagraphProperties, PageLayout,
                         MasterPage, TableCellProperties, TableProperties,
                         TableRowProperties, TableColumnProperties)
@@ -69,6 +71,32 @@ NARANJA    = "#b85c2e"   # acento callout
 NARANJA_BG = "#fbf3ee"   # fondo callout
 DORADO     = "#c9a04e"   # línea decorativa bajo título
 GRIS_META  = "#9aa0a8"   # texto secundario
+
+
+# ─── HELPERS DE TEXTO (para heurísticas de detección) ────────────────────────
+
+def _plainText(node):
+    """Extrae el texto plano de un token mistune (o lista de tokens), ignorando
+    cualquier formato inline (negrita, cursiva, campos {{...}}, etc.)."""
+    if isinstance(node, list):
+        return ''.join(_plainText(n) for n in node)
+    if isinstance(node, str):
+        return node
+    if not isinstance(node, dict):
+        return ''
+    if node.get('type') == 'text':
+        return node.get('raw', '')
+    children = node.get('children')
+    if children:
+        return ''.join(_plainText(c) for c in children)
+    return node.get('raw', '')
+
+
+def _norm(s):
+    """Normaliza para comparaciones: minúsculas, sin acentos, espacios simples."""
+    s = unicodedata.normalize('NFKD', s or '')
+    s = ''.join(c for c in s if not unicodedata.combining(c))
+    return ' '.join(s.lower().split())
 
 
 # ─── HELPERS NS ───────────────────────────────────────────────────────────────
@@ -486,12 +514,22 @@ def renderBlock(doc, token):
         renderTable(doc, token)
 
     elif t == 'block_quote':
+        quote_inline = []
         for c in children:
             if c.get('type') == 'paragraph':
-                p = P(stylename='BodyNote')
-                p.addText('| ')
-                for ic in c.get('children', []): renderStyledText(p, ic)
-                doc.text.addElement(p)
+                quote_inline.extend(c.get('children', []))
+        plain = _plainText(quote_inline)
+        # Citas que avisan de algo importante (⚠ o la palabra "IMPORTANTE")
+        # se renderizan como el callout naranja, no como cita genérica.
+        if '⚠' in plain or 'importante' in _norm(plain):
+            addAvisoFromInline(doc, quote_inline)
+        else:
+            for c in children:
+                if c.get('type') == 'paragraph':
+                    p = P(stylename='BodyNote')
+                    p.addText('| ')
+                    for ic in c.get('children', []): renderStyledText(p, ic)
+                    doc.text.addElement(p)
 
     elif t == 'thematic_break':
         # restos de separadores de página del documento original (Word);
@@ -507,7 +545,10 @@ def renderBlock(doc, token):
 
 
 def renderTable(doc, token):
-    """Renderiza un token mistune tipo 'table' (children: table_head, table_body)."""
+    """Renderiza un token mistune tipo 'table' (children: table_head, table_body).
+    Las tablas de 2 columnas (el patrón habitual «etiqueta | valor» de estos
+    documentos) se renderizan con el estilo institucional de tabla de datos
+    o económica (ver renderKeyValueTable); el resto usa una rejilla genérica."""
     head = next((c for c in token.get('children', []) if c.get('type') == 'table_head'), None)
     body = next((c for c in token.get('children', []) if c.get('type') == 'table_body'), None)
     head_cells = head.get('children', []) if head else []
@@ -515,6 +556,13 @@ def renderTable(doc, token):
     n_cols = len(head_cells) or max((len(r.get('children', [])) for r in body_rows), default=0)
     if n_cols == 0:
         return
+
+    if n_cols == 2 and body_rows and all(len(r.get('children', [])) >= 2 for r in body_rows):
+        label_cells = [r['children'][0].get('children', []) for r in body_rows]
+        value_cells = [r['children'][1].get('children', []) for r in body_rows]
+        renderKeyValueTable(doc, label_cells, value_cells)
+        return
+
     col_w = 16.5 / n_cols
 
     def build_rows(tbl):
@@ -534,6 +582,45 @@ def renderTable(doc, token):
             tbl.addElement(mkRow(cells))
 
     addTable(doc, 'TBL_Md', [col_w] * n_cols, build_rows)
+
+
+def renderKeyValueTable(doc, label_cells, value_cells):
+    """Renderiza una tabla de 2 columnas (etiqueta/valor) detectando
+    automáticamente si es una tabla económica (contiene IVA/presupuesto en
+    alguna etiqueta) — con la fila de "total" destacada en azul — o una
+    tabla de datos institucional normal (líneas separadoras finas, sin
+    rejilla completa)."""
+    n = len(label_cells)
+    if n == 0:
+        return
+    label_norm = [_norm(_plainText(c)) for c in label_cells]
+    is_economic = any(('iva' in t) or ('presupuesto' in t) for t in label_norm)
+
+    if is_economic:
+        def build_rows(tbl):
+            for i in range(n):
+                is_total = 'total' in label_norm[i]
+                lc = 'TC_EcoTotalLabel' if is_total else 'TC_EcoLabel'
+                vc = 'TC_EcoTotalValor' if is_total else 'TC_EcoValor'
+                lp = 'EcoTotalLab' if is_total else 'EcoLabel'
+                vp = 'EcoTotalVal' if is_total else 'EcoValor'
+                p_l = P(stylename=lp)
+                for c in label_cells[i]: renderStyledText(p_l, c)
+                p_v = P(stylename=vp)
+                for c in value_cells[i]: renderStyledText(p_v, c)
+                tbl.addElement(mkRow([mkCell(lc, [p_l]), mkCell(vc, [p_v])]))
+        addTable(doc, 'TBL_Eco', [10.0, 6.5], build_rows)
+    else:
+        def build_rows(tbl):
+            for i in range(n):
+                is_last = (i == n - 1)
+                lc = 'TC_LabelLast' if is_last else 'TC_Label'
+                vc = 'TC_ValorLast' if is_last else 'TC_Valor'
+                p_l = mkP('TabLabel', _plainText(label_cells[i]).upper())
+                p_v = P(stylename='TabValor')
+                for c in value_cells[i]: renderStyledText(p_v, c)
+                tbl.addElement(mkRow([mkCell(lc, [p_l]), mkCell(vc, [p_v])]))
+        addTable(doc, 'TBL_Datos', [5.6, 10.9], build_rows)
 
 
 def renderListItem(doc, item, ordered=False, num=1):
@@ -620,64 +707,63 @@ def addTable(doc, style_name, col_widths_cm, rows_fn):
 
 # ─── SECCIÓN: CABECERA INSTITUCIONAL ─────────────────────────────────────────
 
-def addCabeceraInstitucional(doc, expediente, tipo_contrato):
-    """Genera la cabecera con nombre ayuntamiento y caja expediente."""
+def addCabeceraInstitucional(doc, expediente, tipo_contrato,
+                              institucion='AYUNTAMIENTO DE TOTANA',
+                              subdep='Negociado de Contratación',
+                              direccion='Plaza de la Constitución, 1 · 30850 Totana (Murcia)'):
+    """Genera la cabecera con nombre ayuntamiento y caja expediente.
+    Si no hay número de expediente, se omite la caja (nunca se muestra
+    un placeholder literal sin resolver)."""
 
-    def build_rows(tbl):
-        # fila única, 2 columnas: institución | expediente
-        tc_inst = mkCell('TC_Bare', [
-            mkP('InstNombre', 'AYUNTAMIENTO DE TOTANA'),
-            mkP('InstSubdep', 'Negociado de Contratación'),
-            mkP('InstDirec',  'Plaza de la Constitución, 1 · 30850 Totana (Murcia)'),
-        ])
+    inst_block = [
+        mkP('InstNombre', institucion),
+        mkP('InstSubdep', subdep),
+        mkP('InstDirec',  direccion),
+    ]
 
-        # Caja expediente: label azul + número + tipo
-        tc_exp_inner = mkCell('TC_ExpBoxLabel', [mkP('ExpLabel', 'EXPEDIENTE')])
-        tr_label = mkRow([tc_exp_inner])
+    if expediente:
+        def build_rows(tbl):
+            tc_inst = mkCell('TC_Bare', inst_block)
 
-        # tabla interna para la caja
-        tbl_exp = Table()
-        st(tbl_exp, 'style-name', 'TBL_Datos')
+            # tabla interna para la caja de expediente
+            tbl_exp = Table()
+            st(tbl_exp, 'style-name', 'TBL_Datos')
 
-        # col única
-        col_exp = TableColumn()
-        col_style = 'ColW_5_5'
-        if not any(getattr(s, 'getAttribute', lambda x: None)('name') == col_style
-                   for s in doc.automaticstyles.childNodes):
-            s2 = Style(name=col_style, family="table-column")
-            tcp2 = TableColumnProperties()
-            st(tcp2, 'column-width', '5.5cm')
-            s2.addElement(tcp2)
-            doc.automaticstyles.addElement(s2)
-        st(col_exp, 'style-name', col_style)
-        tbl_exp.addElement(col_exp)
-        tbl_exp.addElement(mkRow([mkCell('TC_ExpBoxLabel', [mkP('ExpLabel', 'EXPEDIENTE')])]))
-        tbl_exp.addElement(mkRow([mkCell('TC_ExpBox', [
-            mkP('ExpNumero', expediente),
-            mkP('ExpTipo', tipo_contrato),
-        ])]))
+            col_exp = TableColumn()
+            col_style = 'ColW_5_5'
+            if not any(getattr(s, 'getAttribute', lambda x: None)('name') == col_style
+                       for s in doc.automaticstyles.childNodes):
+                s2 = Style(name=col_style, family="table-column")
+                tcp2 = TableColumnProperties()
+                st(tcp2, 'column-width', '5.5cm')
+                s2.addElement(tcp2)
+                doc.automaticstyles.addElement(s2)
+            st(col_exp, 'style-name', col_style)
+            tbl_exp.addElement(col_exp)
+            tbl_exp.addElement(mkRow([mkCell('TC_ExpBoxLabel', [mkP('ExpLabel', 'EXPEDIENTE')])]))
+            tbl_exp.addElement(mkRow([mkCell('TC_ExpBox', [
+                mkP('ExpNumero', expediente),
+                mkP('ExpTipo', tipo_contrato),
+            ])]))
 
-        tc_exp = TableCell()
-        st(tc_exp, 'style-name', 'TC_Bare')
-        tc_exp.addElement(tbl_exp)
+            tc_exp = TableCell()
+            st(tc_exp, 'style-name', 'TC_Bare')
+            tc_exp.addElement(tbl_exp)
 
-        tbl.addElement(mkRow([tc_inst, tc_exp]))
+            tbl.addElement(mkRow([tc_inst, tc_exp]))
 
-    addTable(doc, 'TBL_Hdr', [10.5, 6.0], build_rows)
+        addTable(doc, 'TBL_Hdr', [10.5, 6.0], build_rows)
+    else:
+        for p in inst_block:
+            doc.text.addElement(p)
 
-    # línea azul separadora bajo la cabecera
-    p_rule = P(stylename='BodyText')
-    # simulamos la línea con borde inferior en un párrafo vacío
-    # No hay forma directa en ODT de hacer un <hr> estilizado;
-    # usamos un párrafo con borde inferior
-    rule_style = Style(name='HdrRule', family="paragraph")
-    rule_pp = ParagraphProperties()
-    fo(rule_pp, 'border-bottom', f'1.5pt solid {AZUL_INS}')
-    fo(rule_pp, 'margin-bottom', '0.35cm')
-    fo(rule_pp, 'margin-top', '0cm')
-    fo(rule_pp, 'padding-bottom', '0.05cm')
-    rule_style.addElement(rule_pp)
-    # verificar que no exista ya
+    addHeaderRule(doc)
+
+
+def addHeaderRule(doc):
+    """Línea azul separadora bajo la cabecera institucional. No hay forma
+    directa en ODT de hacer un <hr> estilizado; se simula con un párrafo
+    vacío con borde inferior."""
     exists = False
     for s in doc.styles.childNodes:
         try:
@@ -687,9 +773,15 @@ def addCabeceraInstitucional(doc, expediente, tipo_contrato):
         except (ValueError, AttributeError):
             continue
     if not exists:
+        rule_style = Style(name='HdrRule', family="paragraph")
+        rule_pp = ParagraphProperties()
+        fo(rule_pp, 'border-bottom', f'1.5pt solid {AZUL_INS}')
+        fo(rule_pp, 'margin-bottom', '0.35cm')
+        fo(rule_pp, 'margin-top', '0cm')
+        fo(rule_pp, 'padding-bottom', '0.05cm')
+        rule_style.addElement(rule_pp)
         doc.styles.addElement(rule_style)
-    p_rule = P(stylename='HdrRule')
-    doc.text.addElement(p_rule)
+    doc.text.addElement(P(stylename='HdrRule'))
 
 
 # ─── SECCIÓN: TÍTULO PRINCIPAL ────────────────────────────────────────────────
@@ -759,12 +851,9 @@ def addTablaEconomica(doc, filas):
 
 # ─── SECCIÓN: CALLOUT DE AVISO ────────────────────────────────────────────────
 
-def addAviso(doc, texto, negrita_inicio=None, md_parser=None):
-    """Caja de aviso con borde izquierdo naranja y fondo crema.
-    Se implementa con un párrafo de estilo automático que lleva
-    background-color y border-left (más fiable que celda en LibreOffice PDF)."""
-
-    # Crear estilo automático de párrafo para el aviso
+def _ensureAvisoStyle(doc):
+    """Crea (si no existe) el estilo automático de párrafo del aviso: borde
+    izquierdo naranja y fondo crema. Devuelve el nombre del estilo."""
     aviso_style_name = 'AvisoParagraph'
     exists = any(getattr(s, 'getAttribute', lambda x: None)('name') == aviso_style_name
                  for s in doc.automaticstyles.childNodes)
@@ -790,7 +879,13 @@ def addAviso(doc, texto, negrita_inicio=None, md_parser=None):
         fo(tp, 'font-family', 'Liberation Serif')
         s.addElement(tp)
         doc.automaticstyles.addElement(s)
+    return aviso_style_name
 
+
+def addAviso(doc, texto, negrita_inicio=None, md_parser=None):
+    """Caja de aviso con borde izquierdo naranja y fondo crema (modo
+    estructurado: recibe texto plano)."""
+    aviso_style_name = _ensureAvisoStyle(doc)
     p = P(stylename=aviso_style_name)
     if negrita_inicio and texto.startswith(negrita_inicio):
         sp_b = Span(stylename='AvisoBold')
@@ -800,6 +895,17 @@ def addAviso(doc, texto, negrita_inicio=None, md_parser=None):
     else:
         resto = texto
     _renderAvisoText(p, resto)
+    doc.text.addElement(p)
+
+
+def addAvisoFromInline(doc, children):
+    """Caja de aviso a partir de tokens inline de mistune (modo markdown):
+    preserva la negrita/formato ya presente en el texto original (p.ej.
+    **IMPORTANTE**, **EXCLUIDA**)."""
+    aviso_style_name = _ensureAvisoStyle(doc)
+    p = P(stylename=aviso_style_name)
+    for c in children:
+        renderStyledText(p, c)
     doc.text.addElement(p)
 
 
@@ -858,47 +964,119 @@ def _renderInlineMd(p, text, md_parser):
                 renderInline(p, token['raw'])
 
 
+# ─── CUERPO COMPLETO DESDE MARKDOWN (modo habitual, sin "secciones") ─────────
+
+def renderDocumentBody(doc, tokens):
+    """Renderiza el cuerpo completo de un modelo cuando llega como markdown
+    plano (caso real de uso: server.js nunca rellena `secciones`, el
+    contenido completo —cabecera, título, tablas, avisos— ya viene escrito
+    por el usuario dentro del propio cuerpo). Aplica el look institucional
+    directamente sobre esa estructura, sin añadir ninguna cabecera/título
+    automáticos por separado (evitando así duplicarlos):
+
+      - El primer encabezado del documento se trata como nombre de la
+        institución; si le sigue un párrafo corto, se trata como
+        subdepartamento. Se cierra con la línea azul separadora.
+      - Dos encabezados consecutivos (sin nada entremedias) se tratan como
+        título principal + subtítulo (con la línea dorada decorativa).
+      - El resto de encabezados de nivel 1-2 son secciones (SeccionH2).
+      - Las tablas y citas de aviso se gestionan en renderTable/renderBlock.
+    """
+    n = len(tokens)
+    i = 0
+    first_heading_done = False
+    while i < n:
+        token = tokens[i]
+        t = token.get('type', '')
+        level = token.get('attrs', {}).get('level', 1)
+
+        if t == 'heading' and level <= 2:
+            if not first_heading_done:
+                first_heading_done = True
+                p = P(stylename='InstNombre')
+                for c in token.get('children', []): renderStyledText(p, c)
+                doc.text.addElement(p)
+
+                j = i + 1
+                if (j < n and tokens[j].get('type') == 'paragraph'
+                        and len(_plainText(tokens[j])) <= 80):
+                    sp = P(stylename='InstSubdep')
+                    for c in tokens[j].get('children', []): renderStyledText(sp, c)
+                    doc.text.addElement(sp)
+                    i = j + 1
+                else:
+                    i += 1
+
+                addHeaderRule(doc)
+                continue
+
+            j = i + 1
+            if (j < n and tokens[j].get('type') == 'heading'
+                    and tokens[j].get('attrs', {}).get('level', 1) <= 2):
+                title_txt = _plainText(token.get('children', []))
+                sub_txt = _plainText(tokens[j].get('children', []))
+                addTituloPrincipal(doc, title_txt, sub_txt)
+                i = j + 1
+                continue
+
+            p = P(stylename='SeccionH2')
+            for c in token.get('children', []): renderStyledText(p, c)
+            doc.text.addElement(p)
+            i += 1
+            continue
+
+        renderBlock(doc, token)
+        i += 1
+
+
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
 
 def main():
+    # Nota: no se admite ninguna plantilla .odt/.ott externa. El documento se
+    # genera siempre desde cero con el formato institucional fijo (cabecera,
+    # caja de expediente, tablas y firma) para garantizar un resultado
+    # consistente independientemente del modelo/origen del contenido.
     if len(sys.argv) < 3:
-        print("Usage: export_odt.py <input.json> <output.odt> [template.ott]",
-              file=sys.stderr)
+        print("Usage: export_odt.py <input.json> <output.odt>", file=sys.stderr)
         sys.exit(1)
 
     input_path  = sys.argv[1]
     output_path = sys.argv[2]
-    template    = sys.argv[3] if len(sys.argv) > 3 else None
 
     with open(input_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
     title         = data.get('title', 'DOCUMENTO')
-    subtitulo     = data.get('subtitulo', '')
-    expediente    = data.get('expediente', '{{EXPEDIENTE}}')
-    tipo_contrato = data.get('tipo_contrato', '')
+    categoria     = data.get('categoria', '')
+    subtitulo     = data.get('subtitulo') or categoria
+    expediente    = data.get('expediente', '')
+    tipo_contrato = data.get('tipo_contrato') or categoria
     secciones     = data.get('secciones', [])
     extra_md      = data.get('markdown', '')
 
-    # Crear/cargar documento
-    if template and os.path.exists(template):
-        doc = load(template)
-        for child in list(doc.text.childNodes):
-            doc.text.removeChild(child)
-    else:
-        doc = OpenDocumentText()
-        applyPageLayout(doc)
-
+    doc = OpenDocumentText()
+    applyPageLayout(doc)
     applyAllStyles(doc)
 
-    # ── CABECERA ──
-    addCabeceraInstitucional(doc, expediente, tipo_contrato)
-
-    # ── TÍTULO ──
-    addTituloPrincipal(doc, title, subtitulo)
-
-    # ── SECCIONES ──
     md_parser = mistune.create_markdown(renderer=None, plugins=['table'])
+
+    if not secciones:
+        # Modo habitual: el cuerpo del modelo ya trae su propia cabecera,
+        # título y secciones escritos como markdown (caso real de la app:
+        # server.js solo envía `markdown`, nunca `secciones`). Se aplica el
+        # look institucional directamente sobre esa estructura para no
+        # duplicar cabecera/título.
+        if extra_md:
+            renderDocumentBody(doc, md_parser(extra_md))
+        doc.save(output_path)
+        print(f"OK:{output_path}", flush=True)
+        return
+
+    # ── Modo estructurado (compatibilidad con el contrato JSON documentado
+    # al inicio de este archivo): cabecera y título explícitos por separado
+    # de las `secciones`. ──
+    addCabeceraInstitucional(doc, expediente, tipo_contrato)
+    addTituloPrincipal(doc, title, subtitulo)
 
     for sec in secciones:
         tipo = sec.get('tipo', 'texto')

@@ -40,7 +40,6 @@ iaInit();
 function abrirModalIA() {
   if (!activeId) { toast('Selecciona un modelo primero'); return; }
   _iaReset();
-  _iaCargarPlantillas();
   openModal('m-ia-generator');
   _iaInitDragDrop();
 }
@@ -299,19 +298,20 @@ function iaCopiarTexto() {
 }
 
 // ─── EXPORTAR DIRECTAMENTE A ODT ──────────────────────────────────────────────
+// El .odt se genera siempre con el formato institucional fijo del backend
+// (cabecera, expediente, tablas y firma): no se usa ninguna plantilla .odt/.ott.
 async function iaExportarOdt() {
   const texto = _iaGetTextoActual();
   if (!texto) { toast('No hay texto generado'); return; }
   if (!activeId) { toast('No hay modelo activo'); return; }
 
-  const plantillaId = document.getElementById('ia-plantilla-select')?.value || null;
   toast('Generando .odt…', 6000);
 
   try {
     const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
     const res = await fetch(`/api/modelos/${activeId}/ia-export-odt`, {
       method: 'POST', headers,
-      body: JSON.stringify({ acuerdo_markdown: texto, plantilla_id: plantillaId || null, campos: {} }),
+      body: JSON.stringify({ acuerdo_markdown: texto, campos: {} }),
     });
 
     if (!res.ok) {
@@ -333,19 +333,6 @@ async function iaExportarOdt() {
   } catch (e) {
     toast('Error: ' + e.message, 5000);
   }
-}
-
-// ─── PLANTILLAS ───────────────────────────────────────────────────────────────
-async function _iaCargarPlantillas() {
-  const sel = document.getElementById('ia-plantilla-select');
-  if (!sel) return;
-  try {
-    const headers = token ? { Authorization: `Bearer ${token}` } : {};
-    const res = await fetch('/api/plantillas', { headers });
-    const lista = await res.json();
-    sel.innerHTML = '<option value="">Sin plantilla (estilos por defecto)</option>' +
-      lista.map(t => `<option value="${t.id}"${t.es_defecto ? ' selected' : ''}>${_escHtml(t.nombre)}</option>`).join('');
-  } catch { /* sin plantillas */ }
 }
 
 // ─── NAVEGACIÓN ───────────────────────────────────────────────────────────────

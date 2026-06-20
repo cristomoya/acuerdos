@@ -603,19 +603,10 @@
           <button class="btn btn-sm" id="btn-versions" onclick="openVersions()">🕘 Historial</button>
           <button class="btn btn-sm" onclick="openQuickPreview()">👁 Vista previa</button>
           <span id="autosave-indicator" style="font-size:11px;color:var(--text3);opacity:0;transition:opacity .3s;margin-left:8px">Guardado automaticamente</span>
-          <!-- export dropdown -->
+          <!-- export -->
           <div class="export-wrap" id="export-wrap">
-            <button class="btn btn-sm" onclick="openDuplicateModal()" title="Duplicar modelo">⧉ Dupplicar</button>  
-            <button class="btn btn-sm btn-success" onclick="toggleExportMenu()">⬇ Exportar .odt ▾</button>
-            <div class="export-menu" id="export-menu">
-              <div class="emenu-label">Plantilla LibreOffice</div>
-                    <div class="emenu-item" onclick="openExportFieldsModal(null)">
-         <span>📄</span><span>Sin plantilla (estilos por defecto)</span>
-       </div>
-
-              <div class="emenu-sep"></div>
-              <div id="emenu-tpls"></div>
-            </div>
+            <button class="btn btn-sm" onclick="openDuplicateModal()" title="Duplicar modelo">⧉ Dupplicar</button>
+            <button class="btn btn-sm btn-success" onclick="exportOdt()" title="Exporta con el formato institucional fijo">⬇ Exportar .odt</button>
           </div>
           <button class="btn btn-sm btn-danger" id="btn-del" onclick="deleteModel()" style="display:none">🗑</button>
         </div>
@@ -987,23 +978,12 @@
   <div class="modal modal-lg" style="width:520px;max-height:85vh">
     <div class="mtitle">📄 Preparar documento para exportar</div>
     <div class="msub">Rellena los campos dinámicos que se sustituirán en el .odt generado. Los campos vacíos se mantendrán sin cambios.</div>
- 
-    <!-- Plantilla seleccionada -->
-    <div id="ef-tpl-badge" style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r);padding:7px 12px;margin-bottom:14px;font-size:12px">
+
+    <div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r);padding:7px 12px;margin-bottom:14px;font-size:12px">
       <span style="font-size:15px">📋</span>
-      <span id="ef-tpl-name" style="color:var(--text2)">Sin plantilla (estilos por defecto)</span>
+      <span style="color:var(--text2)">Formato institucional fijo (sin plantilla)</span>
     </div>
 
-    <div class="fg" style="margin-bottom:14px">
-      <label class="fl">Modo de estilo</label>
-      <select id="ef-style-mode" style="width:100%;font-size:13px;padding:7px 8px;border:0.5px solid var(--border);border-radius:6px;box-sizing:border-box">
-        <option value="oficial">Oficial</option>
-        <option value="moderno">Moderno</option>
-        <option value="mixto">Mixto</option>
-      </select>
-      <small style="display:block;margin-top:4px;color:var(--text3)">Mixto combina títulos modernos con cuerpo oficial.</small>
-    </div>
- 
     <!-- Campos dinámicos - se rellena por JS -->
     <div id="ef-campos" style="max-height:390px;overflow-y:auto;padding-right:4px"></div>
  
@@ -1049,15 +1029,6 @@
   <div class="modal modal-lg" style="width:480px;max-height:80vh">
     <div class="mtitle" id="bf-title">Exportar modelos como ZIP</div>
     <div class="msub">Rellena los campos comunes que se aplicarán a todos los documentos. Los campos en blanco no se sustituirán.</div>
-    <div class="fg" style="margin-top:14px;margin-bottom:14px">
-      <label class="fl">Modo de estilo</label>
-      <select id="bf-style-mode" style="width:100%;font-size:13px;padding:7px 8px;border:0.5px solid var(--border);border-radius:6px;box-sizing:border-box">
-        <option value="oficial">Oficial</option>
-        <option value="moderno">Moderno</option>
-        <option value="mixto">Mixto</option>
-      </select>
-      <small style="display:block;margin-top:4px;color:var(--text3)">El ZIP usará el mismo modo para todos los documentos.</small>
-    </div>
     <div id="bf-campos" style="max-height:340px;overflow-y:auto;padding-right:4px;margin-top:14px"></div>
     <div class="mfoot">
       <button class="btn btn-sm" onclick="closeModal('m-export-batch')">Cancelar</button>
@@ -1209,12 +1180,6 @@
         <textarea class="ia-result-ta" id="ia-resultado" style="flex:1"></textarea>
  
         <!-- Selector de plantilla para exportar -->
-        <div class="ia-plantilla-row" style="flex-shrink:0">
-          <label>Plantilla para exportar:</label>
-          <select id="ia-plantilla-select">
-            <option value="">Sin plantilla (estilos por defecto)</option>
-          </select>
-        </div>
  
         <div class="ia-aviso" style="flex-shrink:0">
           ⚠️ <strong>Revisión obligatoria:</strong> El texto generado por IA debe ser
