@@ -33,7 +33,7 @@ Estructura de secciones:
       ]
     },
     {
-      "tipo": "aviso",           # callout con borde izquierdo naranja
+      "tipo": "aviso",           # callout azul corporativo con borde izquierdo
       "texto": "IMPORTANTE. No se admitirán ofertas por Sede Electrónica..."
     },
     {
@@ -61,16 +61,25 @@ from odf.text import P, Span, H, LineBreak
 from odf.table import Table, TableRow, TableCell, TableColumn
 from odf.namespaces import STYLENS, FONS, TEXTNS, OFFICENS, TABLENS
 
-# ─── COLOR PALETTE (idéntica al HTM) ──────────────────────────────────────────
-AZUL_INS   = "#1f3a5f"   # azul institucional
+# ─── COLOR PALETTE (Manual de Identidad Corporativa, Ayuntamiento de Totana) ──
+# Color principal: azul corporativo #0075bf (CMYK 100 40 0 0 / RGB 0 117 191).
+# Combinaciones permitidas: blanco o negro sobre azul; azul o negro sobre
+# blanco (sec. 6.2). No se usan colores no corporativos (naranja, dorado...)
+# en ningún acento ni callout.
+AZUL_INS    = "#0075bf"   # azul corporativo (color principal)
+AZUL_OSCURO = "#0f2a40"   # azul secundario (acentos oscuros, p.ej. firma)
+AZUL_TINT   = "#eaf4fb"   # tinte muy claro del azul (fondos de aviso/notas)
+AZUL_TINT_B = "#bfe0f3"   # tinte medio del azul (bordes de aviso/notas)
 GRIS_LABEL = "#5b6470"   # etiquetas tabla
-GRIS_TEXTO = "#262d3a"   # texto cuerpo
+GRIS_TEXTO = "#262d3a"   # texto cuerpo (negro, sec. 7.1 "Texto párrafo: Negro")
 GRIS_CLARO = "#e2e4e8"   # líneas separadoras
 GRIS_BG    = "#f3f5f8"   # fondo fila total / fondo CSV
-NARANJA    = "#b85c2e"   # acento callout
-NARANJA_BG = "#fbf3ee"   # fondo callout
-DORADO     = "#c9a04e"   # línea decorativa bajo título
 GRIS_META  = "#9aa0a8"   # texto secundario
+
+# Tipografía corporativa (sec. 5.1): HK Grotesk, con Inter como alternativa
+# (sec. 2.1.3, usada en el escudo) y fallback a fuentes del sistema.
+FONT_SANS = "'HK Grotesk', Inter, Arial, sans-serif"
+FONT_MONO = "'Liberation Mono', Consolas, monospace"
 
 
 # ─── HELPERS DE TEXTO (para heurísticas de detección) ────────────────────────
@@ -115,7 +124,7 @@ def tbl(el, attr, val):
 
 def addParaStyle(doc, name, size="12pt", bold=False, italic=False,
                  align="start", mb="0.2cm", mt="0cm",
-                 font="Liberation Serif", lh="150%",
+                 font=FONT_SANS, lh="150%",
                  color=None, border_bottom=None):
     s = Style(name=name, family="paragraph")
     pp = ParagraphProperties()
@@ -187,38 +196,38 @@ def applyAllStyles(doc):
 
     # Cabecera institución
     addParaStyle(doc, 'InstNombre',  '16pt', bold=True, mb='0.1cm', mt='0cm',
-                 font='Liberation Sans', color=AZUL_INS, lh='110%')
+                 font=FONT_SANS, color=AZUL_INS, lh='110%')
     addParaStyle(doc, 'InstSubdep',  '9pt', mb='0.1cm', mt='0.1cm',
-                 font='Liberation Sans', color=GRIS_LABEL, lh='110%')
-    addParaStyle(doc, 'InstDirec',   '9pt', mb='0cm', font='Liberation Serif',
+                 font=FONT_SANS, color=GRIS_LABEL, lh='110%')
+    addParaStyle(doc, 'InstDirec',   '9pt', mb='0cm', font=FONT_SANS,
                  color=GRIS_META, lh='110%')
 
     # Expediente box
     addParaStyle(doc, 'ExpLabel',    '8pt', bold=True, mb='0cm', mt='0cm',
-                 font='Liberation Sans', color='#ffffff', lh='110%')
+                 font=FONT_SANS, color='#ffffff', lh='110%')
     addParaStyle(doc, 'ExpNumero',   '17pt', bold=True, mb='0cm', mt='0.1cm',
-                 font='Liberation Sans', color=AZUL_INS, lh='100%')
+                 font=FONT_SANS, color=AZUL_INS, lh='100%')
     addParaStyle(doc, 'ExpTipo',     '9pt', mb='0.1cm', mt='0cm',
-                 font='Liberation Serif', color='#6b7280', lh='110%')
+                 font=FONT_SANS, color='#6b7280', lh='110%')
 
     # Título principal
     addParaStyle(doc, 'DocSupratit', '9pt', mb='0.1cm', mt='0.8cm',
-                 font='Liberation Sans', color=GRIS_META, align='center',
+                 font=FONT_SANS, color=GRIS_META, align='center',
                  lh='110%')
     addParaStyle(doc, 'DocTitle',    '22pt', bold=True, mb='0.3cm', mt='0.2cm',
-                 font='Liberation Sans', color=AZUL_INS, align='center',
+                 font=FONT_SANS, color=AZUL_INS, align='center',
                  lh='110%')
     addParaStyle(doc, 'TitleRule',   '3pt', mb='0.5cm', mt='0cm',
-                 align='center', color=DORADO)
+                 align='center', color=AZUL_INS)
 
     # H2 sección (uppercase, borde inferior azul)
     addParaStyle(doc, 'SeccionH2',   '9.5pt', bold=True, mb='0cm', mt='0.7cm',
-                 font='Liberation Sans', color=AZUL_INS, lh='110%',
+                 font=FONT_SANS, color=AZUL_INS, lh='110%',
                  border_bottom=f'0.75pt solid {AZUL_INS}')
 
     # Tabla datos — etiqueta
     addParaStyle(doc, 'TabLabel',    '9pt', bold=True, mb='0cm',
-                 font='Liberation Sans', color=GRIS_LABEL, lh='130%')
+                 font=FONT_SANS, color=GRIS_LABEL, lh='130%')
     # Tabla datos — valor
     addParaStyle(doc, 'TabValor',    '11.5pt', mb='0cm', lh='150%',
                  color=GRIS_TEXTO)
@@ -228,24 +237,24 @@ def applyAllStyles(doc):
     addParaStyle(doc, 'EcoLabel',    '11.5pt', mb='0cm', lh='140%',
                  color='#3a4150')
     addParaStyle(doc, 'EcoValor',    '11.5pt', bold=True, mb='0cm', lh='140%',
-                 font='Liberation Sans', color=GRIS_TEXTO, align='end')
+                 font=FONT_SANS, color=GRIS_TEXTO, align='end')
     addParaStyle(doc, 'EcoTotalLab', '11.5pt', bold=True, mb='0cm', lh='140%',
-                 font='Liberation Sans', color=AZUL_INS)
+                 font=FONT_SANS, color=AZUL_INS)
     addParaStyle(doc, 'EcoTotalVal', '13pt', bold=True, mb='0cm', lh='140%',
-                 font='Liberation Sans', color=AZUL_INS, align='end')
+                 font=FONT_SANS, color=AZUL_INS, align='end')
 
     # Callout aviso
     # AvisoText: el borde izquierdo se gestiona via estilo de celda TC_AvisoLeft
 
     # Firma / pie
     addParaStyle(doc, 'FirmaTit',    '8pt', bold=True, mb='0cm', mt='0.2cm',
-                 font='Liberation Sans', color=AZUL_INS, align='center', lh='110%')
+                 font=FONT_SANS, color=AZUL_INS, align='center', lh='110%')
     addParaStyle(doc, 'FirmaSubt',   '9.5pt', mb='0cm', mt='0.1cm',
                  color=GRIS_META, align='center', lh='110%')
     addParaStyle(doc, 'CSVLabel',    '7.5pt', bold=False, mb='0.05cm',
-                 font='Liberation Sans', color=GRIS_META, lh='110%')
+                 font=FONT_SANS, color=GRIS_META, lh='110%')
     addParaStyle(doc, 'CSVCode',     '9.5pt', mb='0cm',
-                 font='Liberation Mono', color='#3a4150', lh='110%')
+                 font=FONT_MONO, color='#3a4150', lh='110%')
 
     # Listas
     addParaStyle(doc, 'ListaBul',    '12pt', mb='0.1cm', lh='170%',
@@ -255,7 +264,7 @@ def applyAllStyles(doc):
 
     # Tabla markdown genérica
     addParaStyle(doc, 'MdTableHeadTxt', '10.5pt', bold=True, mb='0cm', lh='140%',
-                 font='Liberation Sans', color='#ffffff')
+                 font=FONT_SANS, color='#ffffff')
     addParaStyle(doc, 'MdTableCellTxt', '11pt', mb='0cm', lh='150%',
                  color=GRIS_TEXTO)
 
@@ -264,13 +273,13 @@ def applyAllStyles(doc):
     addTextStyle(doc, 'Italic',       italic=True)
     addTextStyle(doc, 'BoldItalic',   bold=True, italic=True)
     addTextStyle(doc, 'FieldMarker',  bg='#FFFF00')
-    addTextStyle(doc, 'CodeInline',   font='Liberation Mono', size='10pt',
+    addTextStyle(doc, 'CodeInline',   font=FONT_MONO, size='10pt',
                  bg='#F4F4F0')
     addTextStyle(doc, 'TextBold',     bold=True, color=GRIS_TEXTO)
     addTextStyle(doc, 'TextNaranja',  bold=True,
-                 color='#8a3f1c', font='Liberation Sans')
-    addTextStyle(doc, 'AvisoBold',    bold=True, color='#8a3f1c',
-                 font='Liberation Sans')
+                 color=AZUL_OSCURO, font=FONT_SANS)
+    addTextStyle(doc, 'AvisoBold',    bold=True, color=AZUL_OSCURO,
+                 font=FONT_SANS)
 
     # ── estilos tabla ──
 
@@ -332,13 +341,13 @@ def applyAllStyles(doc):
                       padding_left='0.3cm', padding_right='0.3cm',
                       padding_top='0.12cm', padding_bottom='0.12cm')
 
-    # Callout aviso
+    # Callout aviso (azul corporativo, sin colores ajenos a la marca)
     addTableCellStyle(doc, 'TC_AvisoLeft',
-                      bg=NARANJA_BG,
-                      border_left=f'3pt solid {NARANJA}',
-                      border_top=f'0.4pt solid #e6c9b6',
-                      border_bottom=f'0.4pt solid #e6c9b6',
-                      border_right=f'0.4pt solid #e6c9b6',
+                      bg=AZUL_TINT,
+                      border_left=f'3pt solid {AZUL_INS}',
+                      border_top=f'0.4pt solid {AZUL_TINT_B}',
+                      border_bottom=f'0.4pt solid {AZUL_TINT_B}',
+                      border_right=f'0.4pt solid {AZUL_TINT_B}',
                       padding_left='0.35cm', padding_right='0.35cm',
                       padding_top='0.25cm', padding_bottom='0.25cm')
 
@@ -520,7 +529,7 @@ def renderBlock(doc, token):
                 quote_inline.extend(c.get('children', []))
         plain = _plainText(quote_inline)
         # Citas que avisan de algo importante (⚠ o la palabra "IMPORTANTE")
-        # se renderizan como el callout naranja, no como cita genérica.
+        # se renderizan como el callout azul, no como cita genérica.
         if '⚠' in plain or 'importante' in _norm(plain):
             addAvisoFromInline(doc, quote_inline)
         else:
@@ -790,7 +799,7 @@ def addTituloPrincipal(doc, title, subtitulo=None):
     if subtitulo:
         doc.text.addElement(mkP('DocSupratit', subtitulo.upper()))
     doc.text.addElement(mkP('DocTitle', title.upper()))
-    # línea dorada decorativa
+    # línea decorativa azul
     doc.text.addElement(mkP('TitleRule', '━━━━━━━━'))
 
 
@@ -853,18 +862,19 @@ def addTablaEconomica(doc, filas):
 
 def _ensureAvisoStyle(doc):
     """Crea (si no existe) el estilo automático de párrafo del aviso: borde
-    izquierdo naranja y fondo crema. Devuelve el nombre del estilo."""
+    izquierdo y fondo en tinte de azul corporativo (sin colores ajenos a la
+    marca, sec. 6.2 del manual de identidad). Devuelve el nombre del estilo."""
     aviso_style_name = 'AvisoParagraph'
     exists = any(getattr(s, 'getAttribute', lambda x: None)('name') == aviso_style_name
                  for s in doc.automaticstyles.childNodes)
     if not exists:
         s = Style(name=aviso_style_name, family='paragraph')
         pp = ParagraphProperties()
-        fo(pp, 'background-color', NARANJA_BG)
-        fo(pp, 'border-left',   f'3pt solid {NARANJA}')
-        fo(pp, 'border-top',    f'0.4pt solid #e6c9b6')
-        fo(pp, 'border-bottom', f'0.4pt solid #e6c9b6')
-        fo(pp, 'border-right',  f'0.4pt solid #e6c9b6')
+        fo(pp, 'background-color', AZUL_TINT)
+        fo(pp, 'border-left',   f'3pt solid {AZUL_INS}')
+        fo(pp, 'border-top',    f'0.4pt solid {AZUL_TINT_B}')
+        fo(pp, 'border-bottom', f'0.4pt solid {AZUL_TINT_B}')
+        fo(pp, 'border-right',  f'0.4pt solid {AZUL_TINT_B}')
         fo(pp, 'padding-top',    '0.2cm')
         fo(pp, 'padding-bottom', '0.2cm')
         fo(pp, 'padding-left',   '0.4cm')
@@ -875,15 +885,15 @@ def _ensureAvisoStyle(doc):
         s.addElement(pp)
         tp = TextProperties()
         fo(tp, 'font-size', '11pt')
-        fo(tp, 'color', '#5a3520')
-        fo(tp, 'font-family', 'Liberation Serif')
+        fo(tp, 'color', AZUL_OSCURO)
+        fo(tp, 'font-family', FONT_SANS)
         s.addElement(tp)
         doc.automaticstyles.addElement(s)
     return aviso_style_name
 
 
 def addAviso(doc, texto, negrita_inicio=None, md_parser=None):
-    """Caja de aviso con borde izquierdo naranja y fondo crema (modo
+    """Caja de aviso con borde izquierdo y fondo en tinte de azul (modo
     estructurado: recibe texto plano)."""
     aviso_style_name = _ensureAvisoStyle(doc)
     p = P(stylename=aviso_style_name)
@@ -978,7 +988,7 @@ def renderDocumentBody(doc, tokens):
         institución; si le sigue un párrafo corto, se trata como
         subdepartamento. Se cierra con la línea azul separadora.
       - Dos encabezados consecutivos (sin nada entremedias) se tratan como
-        título principal + subtítulo (con la línea dorada decorativa).
+        título principal + subtítulo (con la línea decorativa azul).
       - El resto de encabezados de nivel 1-2 son secciones (SeccionH2).
       - Las tablas y citas de aviso se gestionan en renderTable/renderBlock.
     """
