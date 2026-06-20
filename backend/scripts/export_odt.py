@@ -131,7 +131,7 @@ def tbl(el, attr, val):
 
 def addParaStyle(doc, name, size="12pt", bold=False, italic=False,
                  align="start", mb="0.2cm", mt="0cm",
-                 font=FONT_SANS, lh="150%",
+                 font=FONT_SANS, lh="150%", weight=None,
                  color=None, border_bottom=None, text_indent=None):
     s = Style(name=name, family="paragraph")
     pp = ParagraphProperties()
@@ -149,7 +149,8 @@ def addParaStyle(doc, name, size="12pt", bold=False, italic=False,
     tp = TextProperties()
     fo(tp, 'font-size', size)
     fo(tp, 'font-family', font)
-    if bold:   fo(tp, 'font-weight', 'bold')
+    if weight: fo(tp, 'font-weight', weight)
+    elif bold: fo(tp, 'font-weight', 'bold')
     if italic: fo(tp, 'font-style', 'italic')
     if color:  fo(tp, 'color', color)
     s.addElement(tp)
@@ -223,7 +224,7 @@ def applyAllStyles(doc):
     addParaStyle(doc, 'DocSupratit', '7pt', mb='0.1cm', mt='0.8cm',
                  font=FONT_SANS, color=GRIS_META, align='center',
                  lh='110%')
-    addParaStyle(doc, 'DocTitle',    '20pt', bold=True, mb='0.3cm', mt='0.2cm',
+    addParaStyle(doc, 'DocTitle',    '20pt', weight='900', mb='0.3cm', mt='0.2cm',
                  font=FONT_SANS, color=AZUL_INS, align='center',
                  lh='110%')
     addParaStyle(doc, 'TitleRule',   '3pt', mb='0.5cm', mt='0cm',
