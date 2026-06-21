@@ -134,13 +134,16 @@ def addParaStyle(doc, name, size="12pt", bold=False, italic=False,
                  font=FONT_SANS, lh="150%", weight=None,
                  color=None, border_bottom=None, text_indent=None,
                  bg=None, padding_top=None, padding_bottom=None,
-                 padding_left=None, padding_right=None):
+                 padding_left=None, padding_right=None,
+                 margin_left=None, margin_right=None):
     s = Style(name=name, family="paragraph")
     pp = ParagraphProperties()
     fo(pp, 'text-align', align)
     fo(pp, 'margin-bottom', mb)
     fo(pp, 'margin-top', mt)
     fo(pp, 'line-height', lh)
+    if margin_left:  fo(pp, 'margin-left', margin_left)
+    if margin_right: fo(pp, 'margin-right', margin_right)
     if text_indent:
         fo(pp, 'text-indent', text_indent)
     if border_bottom:
@@ -218,6 +221,15 @@ def applyAllStyles(doc):
                  color='#5b6470')
     addParaStyle(doc, 'BodyNote',    '9pt', mb='0.15cm', lh='160%',
                  color='#5b6470')
+    # Cita (blockquote `>`): fondo en el tinte institucional, cursiva,
+    # márgenes laterales más estrechos que el cuerpo (queda como un bloque
+    # indentado dentro de la página) y sangría de primera línea.
+    addParaStyle(doc, 'CitaInst',    '9.5pt', italic=True, mb='0.3cm', mt='0.3cm',
+                 lh='150%', color=AZUL_OSCURO, bg=AZUL_TINT,
+                 margin_left='1.2cm', margin_right='1.2cm',
+                 text_indent='0.6cm',
+                 padding_top='0.25cm', padding_bottom='0.25cm',
+                 padding_left='0.4cm', padding_right='0.4cm')
 
     # Cabecera institución
     addParaStyle(doc, 'InstNombre',  '14pt', bold=True, mb='0.1cm', mt='0cm',
@@ -625,8 +637,7 @@ def renderBlock(doc, token):
         else:
             for c in children:
                 if c.get('type') == 'paragraph':
-                    p = P(stylename='BodyNote')
-                    p.addText('| ')
+                    p = P(stylename='CitaInst')
                     for ic in c.get('children', []): renderStyledText(p, ic)
                     doc.text.addElement(p)
 
