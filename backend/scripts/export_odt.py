@@ -227,6 +227,11 @@ def applyAllStyles(doc):
     addParaStyle(doc, 'InstDirec',   '7pt', mb='0cm', font=FONT_SANS,
                  color=GRIS_META, lh='110%')
 
+    # Icono escudo (sin el text-indent de BodyText: con él, el icono se
+    # desplaza 1.2cm dentro de su celda y se sale de la columna estrecha
+    # del escudo, solapando con el nombre de la institución de al lado)
+    addParaStyle(doc, 'IconoEscudo', '10pt', mb='0cm', mt='0cm', align='start')
+
     # Expediente box
     addParaStyle(doc, 'ExpLabel',    '6pt', bold=True, mb='0cm', mt='0cm',
                  font=FONT_SANS, color='#ffffff', lh='110%',
@@ -808,7 +813,7 @@ def addCabeceraInstitucional(doc, expediente, tipo_contrato,
     if expediente:
         def build_rows(outer_tbl):
             tbl_inst = buildEscudoConNombreTable(doc, inst_block,
-                                                  col_icon_cm=2.0, total_w_cm=10.5)
+                                                  col_icon_cm=2.6, total_w_cm=10.5)
             tc_inst = TableCell()
             tbl(tc_inst, 'style-name', 'TC_Bare')
             tc_inst.addElement(tbl_inst)
@@ -871,21 +876,23 @@ def addHeaderRule(doc):
     doc.text.addElement(P(stylename='HdrRule'))
 
 
-def _escudoIconParagraph(doc, icon_height_cm=1.5):
+def _escudoIconParagraph(doc, icon_height_cm=1.8):
     """Párrafo con el icono del escudo institucional incrustado (frame
-    en línea, tamaño proporcional al recorte de assets/escudo_icon.png)."""
+    en línea, tamaño proporcional al recorte de assets/escudo_icon.png).
+    Usa el estilo IconoEscudo (sin text-indent) para que el frame no se
+    desplace fuera de la columna estrecha del escudo."""
     href = doc.addPicture(ESCUDO_PATH)
     icon_w_cm = icon_height_cm * (ESCUDO_W_PX / ESCUDO_H_PX)
     frame = Frame(width=f'{icon_w_cm:.2f}cm', height=f'{icon_height_cm}cm',
                   anchortype='as-char')
     frame.addElement(DrawImage(href=href))
-    p = P(stylename='BodyText')
+    p = P(stylename='IconoEscudo')
     p.addElement(frame)
     return p
 
 
-def buildEscudoConNombreTable(doc, nombre_paragraphs, icon_height_cm=1.5,
-                               col_icon_cm=2.3, total_w_cm=16.5):
+def buildEscudoConNombreTable(doc, nombre_paragraphs, icon_height_cm=1.8,
+                               col_icon_cm=2.6, total_w_cm=16.5):
     """Construye (sin insertar en el documento) la tabla de cabecera con el
     escudo a la izquierda y el nombre de la institución (+ subdepartamento/
     dirección) a la derecha — variación "en bandera izquierda" del manual de
@@ -900,8 +907,8 @@ def buildEscudoConNombreTable(doc, nombre_paragraphs, icon_height_cm=1.5,
                        build_rows)
 
 
-def addEscudoConNombre(doc, nombre_paragraphs, icon_height_cm=1.5,
-                        col_icon_cm=2.3, total_w_cm=16.5):
+def addEscudoConNombre(doc, nombre_paragraphs, icon_height_cm=1.8,
+                        col_icon_cm=2.6, total_w_cm=16.5):
     """Añade al documento la cabecera con escudo + nombre (ver
     buildEscudoConNombreTable)."""
     doc.text.addElement(buildEscudoConNombreTable(
