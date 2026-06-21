@@ -55,7 +55,7 @@ import mistune
 from odf.opendocument import OpenDocumentText
 from odf.style import (Style, TextProperties, ParagraphProperties, PageLayout,
                         MasterPage, TableCellProperties, TableProperties,
-                        TableRowProperties, TableColumnProperties)
+                        TableRowProperties, TableColumnProperties, Header)
 from odf.element import Element
 from odf.text import P, Span, H, LineBreak
 from odf.table import Table, TableRow, TableCell, TableColumn
@@ -489,6 +489,25 @@ def applyPageLayout(doc):
     doc.masterstyles.addElement(mp)
 
 
+def getPageHeader(doc, master_page_name="Standard"):
+    """Devuelve el elemento <style:header> de la master page (lo crea si no
+    existe). Cualquier contenido añadido aquí se repite en todas las páginas
+    del documento, a diferencia de doc.text que solo aparece una vez."""
+    mp = None
+    for m in doc.masterstyles.childNodes:
+        if m.getAttribute('name') == master_page_name:
+            mp = m
+            break
+    if mp is None:
+        raise ValueError(f"Master page '{master_page_name}' no encontrada")
+    for child in mp.childNodes:
+        if getattr(child, 'qname', None) == (STYLENS, 'header'):
+            return child
+    header = Header()
+    mp.addElement(header)
+    return header
+
+
 # ─── INLINE RENDER ────────────────────────────────────────────────────────────
 
 FIELD_RE = re.compile(r'\{\{([A-Z][A-Z0-9_]*)\}\}')
@@ -789,9 +808,10 @@ def buildTable(doc, style_name, col_widths_cm, rows_fn):
     return table_el
 
 
-def addTable(doc, style_name, col_widths_cm, rows_fn):
-    """Construye una tabla y la añade al documento."""
-    doc.text.addElement(buildTable(doc, style_name, col_widths_cm, rows_fn))
+def addTable(doc, style_name, col_widths_cm, rows_fn, parent=None):
+    """Construye una tabla y la añade a `parent` (doc.text por defecto)."""
+    (parent if parent is not None else doc.text).addElement(
+        buildTable(doc, style_name, col_widths_cm, rows_fn))
 
 
 # ─── SECCIÓN: CABECERA INSTITUCIONAL ─────────────────────────────────────────
@@ -799,10 +819,16 @@ def addTable(doc, style_name, col_widths_cm, rows_fn):
 def addCabeceraInstitucional(doc, expediente, tipo_contrato,
                               institucion='AYUNTAMIENTO DE TOTANA',
                               subdep='Negociado de Contratación',
-                              direccion='Plaza de la Constitución, 1 · 30850 Totana (Murcia)'):
+                              direccion='Plaza de la Constitución, 1 · 30850 Totana (Murcia)',
+                              parent=None):
     """Genera la cabecera con nombre ayuntamiento y caja expediente.
     Si no hay número de expediente, se omite la caja (nunca se muestra
-    un placeholder literal sin resolver)."""
+    un placeholder literal sin resolver). Por defecto se añade al
+    <style:header> de la master page, repitiéndose en todas las páginas;
+    pasa parent=doc.text explícitamente para insertarla solo una vez en
+    el cuerpo."""
+    if parent is None:
+        parent = getPageHeader(doc)
 
     inst_block = [
         mkP('InstNombre', institucion),
@@ -845,17 +871,19 @@ def addCabeceraInstitucional(doc, expediente, tipo_contrato,
 
             outer_tbl.addElement(mkRow([tc_inst, tc_exp]))
 
-        addTable(doc, 'TBL_Hdr', [10.5, 6.0], build_rows)
+        addTable(doc, 'TBL_Hdr', [10.5, 6.0], build_rows, parent=parent)
     else:
-        addEscudoConNombre(doc, inst_block)
+        addEscudoConNombre(doc, inst_block, parent=parent)
 
-    addHeaderRule(doc)
+    addHeaderRule(doc, parent=parent)
 
 
-def addHeaderRule(doc):
+def addHeaderRule(doc, parent=None):
     """Línea azul separadora bajo la cabecera institucional. No hay forma
     directa en ODT de hacer un <hr> estilizado; se simula con un párrafo
     vacío con borde inferior."""
+    if parent is None:
+        parent = doc.text
     exists = False
     for s in doc.styles.childNodes:
         try:
@@ -873,7 +901,7 @@ def addHeaderRule(doc):
         fo(rule_pp, 'padding-bottom', '0.05cm')
         rule_style.addElement(rule_pp)
         doc.styles.addElement(rule_style)
-    doc.text.addElement(P(stylename='HdrRule'))
+    parent.addElement(P(stylename='HdrRule'))
 
 
 def _escudoIconParagraph(doc, icon_height_cm=1.8):
@@ -908,10 +936,12 @@ def buildEscudoConNombreTable(doc, nombre_paragraphs, icon_height_cm=1.8,
 
 
 def addEscudoConNombre(doc, nombre_paragraphs, icon_height_cm=1.8,
-                        col_icon_cm=2.6, total_w_cm=16.5):
-    """Añade al documento la cabecera con escudo + nombre (ver
-    buildEscudoConNombreTable)."""
-    doc.text.addElement(buildEscudoConNombreTable(
+                        col_icon_cm=2.6, total_w_cm=16.5, parent=None):
+    """Añade la cabecera con escudo + nombre (ver buildEscudoConNombreTable)
+    a `parent` (doc.text por defecto)."""
+    if parent is None:
+        parent = doc.text
+    parent.addElement(buildEscudoConNombreTable(
         doc, nombre_paragraphs, icon_height_cm, col_icon_cm, total_w_cm))
 
 
@@ -1143,8 +1173,9 @@ def renderDocumentBody(doc, tokens):
                 else:
                     i += 1
 
-                addEscudoConNombre(doc, nombre_paragraphs)
-                addHeaderRule(doc)
+                header = getPageHeader(doc)
+                addEscudoConNombre(doc, nombre_paragraphs, parent=header)
+                addHeaderRule(doc, parent=header)
                 continue
 
             j = i + 1
