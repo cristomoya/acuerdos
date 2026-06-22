@@ -476,10 +476,22 @@ async function saveModel() {
   await openModel(activeId);
 }
 
+const CABECERA_DEFECTO = `## **AYUNTAMIENTO DE TOTANA**
+Negociado de Contratación
+
+| | |
+|:---|:---|
+| **Expediente** | {{EXPEDIENTE}} |
+| **Tipo de contrato** | {{TIPO_CONTRATO}} |
+| **Objeto** | {{OBJETO}} |
+| **Valor estimado del contrato** | {{VALOR_ESTIMADO}} |
+| **Duración del contrato** | {{PLAZO}} |
+`;
+
 async function newModel() {
   const res = await api('POST', '/modelos', {
     nombre:'Nuevo modelo', categoria_id:null, estado:'borrador',
-    cuerpo:'# Titulo del acuerdo\n\nEscriba aqui el cuerpo del acuerdo usando Markdown.\n\nUse {{CAMPO}} para campos dinamicos.\n'
+    cuerpo:`${CABECERA_DEFECTO}\n# Titulo del acuerdo\n\nEscriba aqui el cuerpo del acuerdo usando Markdown.\n\nUse {{CAMPO}} para campos dinamicos.\n`
   });
   if (!res) return;
   await loadModels(); openModel(res.id);

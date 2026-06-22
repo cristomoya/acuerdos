@@ -269,7 +269,18 @@ if (catCount.n === 0) {
     [1, 'Acuerdo de Pleno - Aprobacin de Presupuesto', 'activo',
      'Modelo para aprobacin de presupuesto municipal en sesion plenaria ordinaria.',
      '["presupuesto","pleno","hacienda"]',
-     `# ACUERDO DE PLENO - {{ORGANISMO}}
+     `## **AYUNTAMIENTO DE TOTANA**
+Negociado de Contratación
+
+| | |
+|:---|:---|
+| **Expediente** | {{EXPEDIENTE}} |
+| **Tipo de contrato** | {{TIPO_CONTRATO}} |
+| **Objeto** | {{OBJETO}} |
+| **Valor estimado del contrato** | {{VALOR_ESTIMADO}} |
+| **Duración del contrato** | {{PLAZO}} |
+
+# ACUERDO DE PLENO - {{ORGANISMO}}
 
 ## Sesin N. {{NUMERO_SESION}}
 
@@ -292,7 +303,18 @@ Lo que se hace constar para los oportunos efectos.
     [3, 'Decreto de Alcaldia - Contratacin', 'activo',
      'Modelo de decreto para procesos de contratacion.',
      '["contratacion","decreto"]',
-     `# DECRETO DE ALCALDA N. {{NUMERO_DECRETO}}
+     `## **AYUNTAMIENTO DE TOTANA**
+Negociado de Contratación
+
+| | |
+|:---|:---|
+| **Expediente** | {{EXPEDIENTE}} |
+| **Tipo de contrato** | {{TIPO_CONTRATO}} |
+| **Objeto** | {{OBJETO}} |
+| **Valor estimado del contrato** | {{VALOR_ESTIMADO}} |
+| **Duración del contrato** | {{PLAZO}} |
+
+# DECRETO DE ALCALDA N. {{NUMERO_DECRETO}}
 
 En **{{ORGANISMO}}**, a {{FECHA}}.
 
@@ -314,7 +336,18 @@ El Alcalde - {{ALCALDE_NOMBRE}}`],
     [5, 'Convenio de Colaboracin Interadministrativa', 'borrador',
      'Plantilla base para convenios con otras administraciones.',
      '["convenio","colaboracion"]',
-     `# CONVENIO DE COLABORACIN
+     `## **AYUNTAMIENTO DE TOTANA**
+Negociado de Contratación
+
+| | |
+|:---|:---|
+| **Expediente** | {{EXPEDIENTE}} |
+| **Tipo de contrato** | {{TIPO_CONTRATO}} |
+| **Objeto** | {{OBJETO}} |
+| **Valor estimado del contrato** | {{VALOR_ESTIMADO}} |
+| **Duración del contrato** | {{PLAZO}} |
+
+# CONVENIO DE COLABORACIN
 
 Entre el **{{ORGANISMO}}**, representado por {{ALCALDE_NOMBRE}}, y **{{ENTIDAD_COLABORADORA}}**, representada por {{REPRESENTANTE_ENTIDAD}}.
 
