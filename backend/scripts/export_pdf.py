@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 from weasyprint import HTML, CSS
 
 FIELD_RE = re.compile(r'\{\{[A-Z0-9_]+\}\}')
+TASK_ITEM_RE = re.compile(r'^\[([ xX])\]\s*')
 
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="es">
@@ -63,6 +64,10 @@ ul, ol {
 }
 li {
   margin-bottom: 0.15cm;
+}
+li.task-item {
+  list-style: none;
+  margin-left: -1.2cm;
 }
 blockquote {
   font-style: italic;
@@ -256,7 +261,14 @@ def _block_html(node, diagrams=None):
         for li in node.find_all('li', recursive=False):
             li_inner = ''.join(_inline_html(c) for c in li.children if c.name not in ('ul', 'ol'))
             nested = ''.join(_block_html(c, diagrams) for c in li.children if c.name in ('ul', 'ol'))
-            items.append(f'<li>{li_inner}{nested}</li>')
+            task_match = TASK_ITEM_RE.match(li_inner)
+            if task_match:
+                checked = task_match.group(1).lower() == 'x'
+                li_inner = TASK_ITEM_RE.sub('', li_inner, count=1)
+                box = '&#9745;' if checked else '&#9744;'
+                items.append(f'<li class="task-item">{box} {li_inner}{nested}</li>')
+            else:
+                items.append(f'<li>{li_inner}{nested}</li>')
         return f'<{tag}>{"".join(items)}</{tag}>'
 
     if tag == 'hr':

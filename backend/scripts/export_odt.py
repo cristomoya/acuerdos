@@ -618,7 +618,7 @@ def renderBlock(doc, token):
         for i, item in enumerate(children, 1):
             renderListItem(doc, item, ordered=ordered, num=i)
 
-    elif t == 'list_item':
+    elif t in ('list_item', 'task_list_item'):
         renderListItem(doc, token)
 
     elif t == 'table':
@@ -739,8 +739,13 @@ def renderKeyValueTable(doc, label_cells, value_cells):
 
 def renderListItem(doc, item, ordered=False, num=1):
     children = item.get('children', [])
+    is_task = item.get('type') == 'task_list_item'
+    checked = item.get('attrs', {}).get('checked', False) if is_task else False
     p = P(stylename='ListaBul' if not ordered else 'ListaNum')
-    prefix = f'{num}. ' if ordered else '• '
+    if is_task:
+        prefix = '☑ ' if checked else '☐ '
+    else:
+        prefix = f'{num}. ' if ordered else '• '
     p.addText(prefix)
     for c in children:
         if c.get('type') in ('paragraph', 'block_text'):
@@ -750,8 +755,11 @@ def renderListItem(doc, item, ordered=False, num=1):
         elif c.get('type') in ('list', 'bullet_list', 'ordered_list'):
             doc.text.addElement(p)
             for sub in c.get('children', []):
+                sub_is_task = sub.get('type') == 'task_list_item'
+                sub_checked = sub.get('attrs', {}).get('checked', False) if sub_is_task else False
+                sub_prefix = ('   ☑ ' if sub_checked else '   ☐ ') if sub_is_task else '   ◦ '
                 sp = P(stylename='ListaBul')
-                sp.addText('   ◦ ')
+                sp.addText(sub_prefix)
                 for sc in sub.get('children', []):
                     if sc.get('type') in ('paragraph', 'block_text'):
                         for ic in sc.get('children', []): renderStyledText(sp, ic)
@@ -1237,7 +1245,7 @@ def main():
     applyPageLayout(doc)
     applyAllStyles(doc)
 
-    md_parser = mistune.create_markdown(renderer=None, plugins=['table'])
+    md_parser = mistune.create_markdown(renderer=None, plugins=['table', 'task_lists'])
 
     if not secciones:
         # Modo habitual: el cuerpo del modelo ya trae su propia cabecera,
