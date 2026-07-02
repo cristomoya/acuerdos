@@ -57,7 +57,7 @@ from odf.style import (Style, TextProperties, ParagraphProperties, PageLayout,
                         MasterPage, TableCellProperties, TableProperties,
                         TableRowProperties, TableColumnProperties, Header)
 from odf.element import Element
-from odf.text import P, Span, H, LineBreak
+from odf.text import P, Span, H, LineBreak, Placeholder
 from odf.table import Table, TableRow, TableCell, TableColumn
 from odf.draw import Frame, Image as DrawImage
 from odf.namespaces import STYLENS, FONS, TEXTNS, OFFICENS, TABLENS
@@ -531,7 +531,9 @@ def renderInline(parent, text):
         if m.start() > last:
             parent.addText(text[last:m.start()])
         sp = Span(stylename='FieldMarker')
-        sp.addText(m.group(0))
+        ph = Placeholder(placeholdertype='text', description=m.group(1))
+        ph.addText(m.group(0))
+        sp.addElement(ph)
         parent.addElement(sp)
         last = m.end()
     if last < len(text):
