@@ -340,7 +340,6 @@ def applyAllStyles(doc):
     addTextStyle(doc, 'Bold',         bold=True)
     addTextStyle(doc, 'Italic',       italic=True)
     addTextStyle(doc, 'BoldItalic',   bold=True, italic=True)
-    addTextStyle(doc, 'FieldMarker',  bg='#FFFF00')
     addTextStyle(doc, 'CodeInline',   font=FONT_MONO, size='8pt',
                  bg='#F4F4F0')
     addTextStyle(doc, 'TextBold',     bold=True, color=GRIS_TEXTO)
@@ -530,11 +529,9 @@ def renderInline(parent, text):
     for m in FIELD_RE.finditer(text):
         if m.start() > last:
             parent.addText(text[last:m.start()])
-        sp = Span(stylename='FieldMarker')
         ph = Placeholder(placeholdertype='text', description=m.group(1))
         ph.addText(m.group(0))
-        sp.addElement(ph)
-        parent.addElement(sp)
+        parent.addElement(ph)
         last = m.end()
     if last < len(text):
         parent.addText(text[last:])
