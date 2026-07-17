@@ -216,6 +216,7 @@ const CONTRACT_FIELDS = [
   { clave: 'CPV',                  nombre: 'Código CPV',                                          tipo: 'texto'   },
   { clave: 'PRESUPUESTO_BASE',     nombre: 'Presupuesto base sin IVA',                            tipo: 'importe' },
   { clave: 'PRESUPUESTO_IVA',      nombre: 'Presupuesto total con IVA',                           tipo: 'importe' },
+  { clave: 'IMPORTE_IVA',          nombre: 'Importe del IVA (diferencia entre el total con IVA y la base)', tipo: 'importe' },
   { clave: 'VALOR_ESTIMADO',       nombre: 'Valor estimado del contrato',                         tipo: 'importe' },
   { clave: 'PLAZO',                nombre: 'Plazo de ejecución',                                  tipo: 'texto'   },
   { clave: 'FECHA_PUBLICACION',    nombre: 'Fecha de publicación',                                tipo: 'fecha'   },
@@ -224,15 +225,24 @@ const CONTRACT_FIELDS = [
   { clave: 'ADJUDICATARIO',        nombre: 'Nombre del adjudicatario',                            tipo: 'texto'   },
   { clave: 'NIF_ADJUDICATARIO',    nombre: 'NIF del adjudicatario',                               tipo: 'texto'   },
   { clave: 'IMPORTE_ADJUDICACION', nombre: 'Importe de adjudicación',                             tipo: 'importe' },
+  { clave: 'IMPORTE_ADJUDICACION_IVA', nombre: 'Importe de adjudicación con IVA',                 tipo: 'importe' },
   { clave: 'FECHA_ADJUDICACION',   nombre: 'Fecha de adjudicación',                               tipo: 'fecha'   },
+  { clave: 'FECHA_FORMALIZACION',  nombre: 'Fecha de formalización del contrato',                 tipo: 'fecha'   },
+  { clave: 'URL_LICITACION',       nombre: 'URL de la licitación en la PLACSP',                   tipo: 'texto'   },
   { clave: 'FINANCIACION_UE',      nombre: 'Programa de financiación UE',                         tipo: 'texto'   },
   { clave: 'SERIE_DOCUMENTAL',     nombre: 'Serie documental',                                    tipo: 'texto'   },
   { clave: 'FECHA',                nombre: 'Fecha de hoy (al generar)',                           tipo: 'fecha'   },
+  { clave: 'RESPONSABLE',          nombre: 'Responsable del contrato',                            tipo: 'texto'   },
+  { clave: 'RESPONSABLE_EMAIL',    nombre: 'Email del responsable del contrato',                  tipo: 'texto'   },
   { clave: 'SOLICITUD',            nombre: 'Solicitud de la concejalía (sección 1)',              tipo: 'texto'   },
   { clave: 'RESERVA_CREDITO',      nombre: 'Reserva de crédito / nº documento RC (sección 5)',    tipo: 'texto'   },
   { clave: 'DIRECTOR_FACULTATIVO', nombre: 'Director facultativo y coordinador de seguridad (sección 6)', tipo: 'texto' },
   { clave: 'FACULTATIVO_RECEPCION',nombre: 'Facultativo municipal para recepcionar obras (sección 7)',     tipo: 'texto' },
   { clave: 'EMPRESAS_INVITADAS',   nombre: 'Lista de empresas/licitadores invitados (sección 8)', tipo: 'texto'   },
+  { clave: 'EMPRESA_NOMBRE',       nombre: 'Nombre de la empresa (solo en modelos con porempresa:1)',   tipo: 'texto' },
+  { clave: 'EMPRESA_CIF',          nombre: 'CIF de la empresa (solo en modelos con porempresa:1)',      tipo: 'texto' },
+  { clave: 'EMPRESA_TELEFONO',     nombre: 'Teléfono de la empresa (solo en modelos con porempresa:1)', tipo: 'texto' },
+  { clave: 'EMPRESA_EMAIL',        nombre: 'Email de la empresa (solo en modelos con porempresa:1)',    tipo: 'texto' },
   { clave: 'FINANCIACION',         nombre: 'Financiación por administración (sección 9)',         tipo: 'texto'   },
 ];
 
@@ -1312,20 +1322,25 @@ app.post('/api/ia/detectar-campos', auth, async (req, res) => {
   const { texto } = req.body;
   if (!texto || !texto.trim()) return res.status(400).json({ error: 'Se requiere texto' });
 
-  const systemPrompt = `Eres un asistente de la Secretaría de un Ayuntamiento que prepara plantillas de documentos administrativos.
+  const systemPrompt = `Eres un asistente de la Secretaría de un Ayuntamiento que convierte documentos de contratación pública municipal (informes, certificados, pliegos, resoluciones, oficios, invitaciones, actas…) en modelos reutilizables.
 
-Vas a recibir el texto de un documento. Tu tarea es EXCLUSIVAMENTE sustituir, dentro de ese texto, los valores concretos que correspondan a alguno de los siguientes campos por su marcador {{CLAVE}}. No redactes, no reescribas, no reorganices, no traduzcas ni resumas nada del texto.
+Vas a recibir el texto de un documento. Tu tarea es EXCLUSIVAMENTE sustituir, dentro de ese texto, los datos variables (nombres, fechas, importes, referencias de expediente, direcciones, descripciones del objeto, líneas de puntos o huecos en blanco de formularios…) por su marcador {{CAMPO}}. No redactes, no reescribas, no reorganices, no traduzcas ni resumas nada del texto: conserva intactos redacción, orden, numeración de apartados, notas al pie y fórmulas de firma.
 
-CAMPOS DISPONIBLES:
+CATÁLOGO DE CAMPOS (usar EXACTAMENTE estos nombres cuando el dato corresponda):
 ${CONTRACT_FIELDS.map(f => `- {{${f.clave}}}: ${f.nombre}`).join('\n')}
 
 REGLAS:
 1. Devuelve el documento COMPLETO y SIN MODIFICAR salvo por las sustituciones de campos.
 2. Sustituye valores concretos que coincidan razonablemente con la descripción de un campo (p.ej. un NIF real por {{NIF}}, una fecha real por {{FECHA_PUBLICACION}} o {{FECHA_LIMITE}} según el contexto, un importe por {{PRESUPUESTO_BASE}}/{{PRESUPUESTO_IVA}}/{{VALOR_ESTIMADO}}/{{IMPORTE_ADJUDICACION}} según corresponda). Ante la duda razonable entre dos campos similares, elige el que tenga más sentido por el contexto en vez de no sustituir nada.
 3. Si un mismo valor aparece varias veces, sustitúyelo todas las veces por el mismo {{CAMPO}}.
-4. Si no encuentras ningún valor para un campo, simplemente no insertes su marcador: deja esa parte del texto tal cual. No es necesario usar todos los campos.
-5. No sustituyas texto que ya sea un marcador {{...}}.
-6. Responde ÚNICAMENTE con el documento resultante, sin comentarios, explicaciones, marcas de código (\`\`\`) ni texto adicional antes o después.`;
+4. Campos no catalogados: cualquier otro dato variable se marca igualmente entre {{}}, con nombre en MAYÚSCULAS y guiones bajos, descriptivo y corto (p. ej. {{FECHA_INICIO_EJECUCION}}, {{LUGAR_EXPEDICION}}, {{CARGO_FIRMANTE}}).
+5. Formularios en blanco: las líneas de puntos (………), guiones o huecos se sustituyen por el marcador del dato que debería ir ahí, deduciéndolo del contexto y de las notas del propio formulario. Si un hueco no permite deducir qué dato va, usa {{PENDIENTE_DEFINIR}}.
+6. Documentos dirigidos a cada empresa (invitaciones, requerimientos, notificaciones individuales): usa los campos {{EMPRESA_NOMBRE}}, {{EMPRESA_CIF}}, {{EMPRESA_TELEFONO}}, {{EMPRESA_EMAIL}} para los datos del destinatario y añade como primera línea del documento el indicador porempresa:1.
+7. Importes en letra y cifra: si el documento exige el importe en letra además de en cifra, usa el mismo nombre de campo con sufijo _LETRA (p. ej. {{IMPORTE_ADJUDICACION_LETRA}}).
+8. Fechas descompuestas ("a … de … de …"): sustituye el conjunto por un único marcador de fecha completa (p. ej. {{FECHA}}), no un marcador por pieza, salvo que el documento requiera realmente las piezas por separado (p. ej. anualidades).
+9. Datos fijos institucionales (p. ej. "Ayuntamiento de Totana"): sustitúyelos por {{ORGANISMO}} para máxima reutilización.
+10. No inventes contenido. No sustituyas texto que ya sea un marcador {{...}}.
+11. Responde ÚNICAMENTE con el documento resultante, sin comentarios, explicaciones, marcas de código (\`\`\`) ni texto adicional antes o después.`;
 
   try {
     const resultado = await _llamarClaude(systemPrompt, texto);
@@ -1408,22 +1423,33 @@ app.post('/api/modelos/:id/generar-ia', auth, async (req, res) => {
       }).join('\n')
     : '';
 
+  const hoyEs = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+  const descCatalogo = new Map(CONTRACT_FIELDS.map(f => [f.clave, f.nombre]));
+
   const systemPrompt = `Eres un asistente de la Secretaría del Ayuntamiento de Totana (Murcia).
 
 Tu tarea es EXCLUSIVAMENTE sustituir los campos {{CAMPO}} de la plantilla por los valores que encuentres en los documentos aportados. No redactes, no reescribas, no reorganices. Devuelve la plantilla íntegra con los campos rellenados.
 
 CAMPOS A RELLENAR:
-${camposPlantilla.map(c => `• {{${c}}}`).join('\n')}
+${camposPlantilla.map(c => {
+    const base = c.endsWith('_LETRA') ? c.slice(0, -'_LETRA'.length) : c;
+    const desc = descCatalogo.get(c) || (descCatalogo.get(base) ? `${descCatalogo.get(base)} (en letra)` : '');
+    return `• {{${c}}}${desc ? `: ${desc}` : ''}`;
+  }).join('\n')}
 
 REGLAS:
 1. Devuelve el texto de la plantilla COMPLETO y SIN MODIFICAR, únicamente con los {{CAMPOS}} sustituidos.
-2. Si no encuentras el valor de un campo en los documentos, déjalo exactamente como {{NOMBRE_CAMPO}}.
+2. Si no encuentras el valor de un campo en los documentos, déjalo exactamente como {{NOMBRE_CAMPO}}. No inventes datos.
 3. No añadas, elimines ni muevas ninguna frase, título, sección ni punto de la plantilla.
 4. Formatos obligatorios:
    - Fechas: "DD de [mes] de YYYY"  →  "15 de marzo de 2024"
    - Importes: cifra con separador de miles y dos decimales  →  "12.500,00 €"
    - Nombres: APELLIDO1 APELLIDO2, Nombre  →  "GARCÍA LÓPEZ, Juan"
-5. Las firmas electrónicas identifican cargo (Alcalde, Secretario, Interventor…); úsalas para los campos de persona correspondientes.`;
+5. Las firmas electrónicas identifican cargo (Alcalde, Secretario, Interventor…); úsalas para los campos de persona correspondientes.
+6. El campo {{FECHA}} es la fecha de hoy: ${hoyEs}.
+7. Los campos con sufijo _LETRA llevan el mismo valor que su campo base pero expresado en letra (p. ej. {{IMPORTE_ADJUDICACION_LETRA}} → "doce mil quinientos euros"); si el importe tiene céntimos, exprésalos también en letra.
+8. {{IMPORTE_IVA}} es la diferencia entre el total con IVA y la base imponible; calcúlalo si los documentos dan la base y el total.
+9. Los campos {{EMPRESA_NOMBRE}}, {{EMPRESA_CIF}}, {{EMPRESA_TELEFONO}} y {{EMPRESA_EMAIL}} se refieren a la empresa destinataria concreta del documento; usa los datos indicados en las instrucciones adicionales si las hay.`;
 
   const mensajeUsuario = `PLANTILLA (devuélvela completa con los campos sustituidos):
 ---

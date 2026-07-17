@@ -1049,7 +1049,7 @@
           <span style="font-size:18px">✨</span> Generar acuerdo con IA
         </h3>
         <div style="font-size:11px;color:var(--text3);margin-top:2px">
-          Sube uno o varios PDFs con los antecedentes · Claude redactará el acuerdo y podrás exportarlo a .odt
+          Sube PDFs o pega el texto con los antecedentes · Claude redactará el acuerdo y podrás exportarlo a .odt
         </div>
       </div>
       <span class="mclose" onclick="closeModal('m-ia-generator')">&times;</span>
@@ -1058,7 +1058,7 @@
     <!-- Stepper -->
     <div class="ia-stepper">
       <div class="ia-dot ia-dot-active" id="ia-dot-1">1</div>
-      <span class="ia-step-label active" id="ia-label-1">Subir PDF(s)</span>
+      <span class="ia-step-label active" id="ia-label-1">PDF(s) o texto</span>
       <div class="ia-connector"></div>
       <div class="ia-dot" id="ia-dot-2">2</div>
       <span class="ia-step-label" id="ia-label-2">Revisar y generar</span>
@@ -1089,7 +1089,16 @@
         <div id="ia-archivo-count" style="font-size:11px;color:var(--text3);margin-bottom:4px">Sin archivos</div>
         <div class="ia-files-list" id="ia-lista-archivos"></div>
       </div>
- 
+
+      <!-- Texto pegado -->
+      <div class="fg" style="margin:0">
+        <label class="fl">… o pega directamente el texto de los antecedentes</label>
+        <textarea id="ia-texto-pegado" rows="5"
+          placeholder="Pega aquí el texto (informe, solicitud, resolución…). Puedes combinarlo con los PDFs de arriba."
+          style="resize:vertical;font-size:13px;line-height:1.5"
+          oninput="iaOnTextoPegado()"></textarea>
+      </div>
+
       <!-- Instrucciones adicionales -->
       <div class="fg" style="margin:0">
         <label class="fl">Instrucciones adicionales para la IA (opcional)</label>
@@ -1102,7 +1111,7 @@
         <button class="btn btn-sm" onclick="closeModal('m-ia-generator')">Cancelar</button>
         <button class="btn btn-sm btn-primary" id="ia-btn-extraer"
                 onclick="iaExtraerPDF()" disabled>
-          → Extraer texto
+          → Continuar
         </button>
       </div>
     </div>
@@ -1158,7 +1167,7 @@
           <span class="ia-spinner"></span> Claude está redactando el acuerdo...
         </div>
         <div class="ia-progress-steps">
-          <div class="ia-progress-step done">✓ Texto extraído del PDF</div>
+          <div class="ia-progress-step done">✓ Antecedentes recopilados</div>
           <div class="ia-progress-step done">✓ Firmas y antecedentes procesados</div>
           <div class="ia-progress-step active">
             <span class="ia-spinner" style="width:11px;height:11px;border-width:1.5px"></span>

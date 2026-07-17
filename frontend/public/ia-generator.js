@@ -48,7 +48,7 @@ function abrirModalIA() {
 function _iaReset() {
   Object.assign(IA, { pdfTexto:'', pdfTextoPreview:'', firmas:[], nArchivos:0, acuerdoGenerado:'', cargando:false, _archivos:[] });
   _iaSetStep(1);
-  const ids = ['ia-instrucciones','ia-resultado'];
+  const ids = ['ia-instrucciones','ia-resultado','ia-texto-pegado'];
   ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const el = document.getElementById('ia-pdf-preview');
   if (el) el.textContent = '';
@@ -126,8 +126,7 @@ function _iaRenderListaArchivos() {
       <button class="ia-file-rm" onclick="iaQuitarArchivo(${i})" title="Quitar">✕</button>`;
     lista.appendChild(row);
   });
-  const btn = document.getElementById('ia-btn-extraer');
-  if (btn) btn.disabled = IA._archivos.length === 0;
+  _iaActualizarBotonContinuar();
   const dz = document.getElementById('ia-dropzone');
   if (dz) dz.classList.toggle('loaded', IA._archivos.length > 0);
   const cnt = document.getElementById('ia-archivo-count');
@@ -146,10 +145,43 @@ function iaQuitarArchivo(i) {
   _iaRenderListaArchivos();
 }
 
+// ─── TEXTO PEGADO ─────────────────────────────────────────────────────────────
+function _iaTextoPegado() {
+  return document.getElementById('ia-texto-pegado')?.value?.trim() || '';
+}
+
+function iaOnTextoPegado() {
+  _iaActualizarBotonContinuar();
+}
+
+function _iaActualizarBotonContinuar() {
+  const btn = document.getElementById('ia-btn-extraer');
+  if (btn) btn.disabled = IA._archivos.length === 0 && !_iaTextoPegado();
+}
+
+function _iaPreview(texto) {
+  return texto.length > 8000
+    ? texto.slice(0, 8000) + '\n\n[... texto truncado para previsualización ...]'
+    : texto;
+}
+
 // ─── PASO 1 → 2: EXTRAER PDF(s) ──────────────────────────────────────────────
 async function iaExtraerPDF() {
-  if (!IA._archivos.length) { toast('Selecciona al menos un PDF'); return; }
+  const textoPegado = _iaTextoPegado();
+  if (!IA._archivos.length && !textoPegado) { toast('Selecciona un PDF o pega el texto de los antecedentes'); return; }
   if (IA.cargando) return;
+
+  // Solo texto pegado: no hay nada que extraer
+  if (!IA._archivos.length) {
+    IA.pdfTexto        = textoPegado;
+    IA.pdfTextoPreview = _iaPreview(textoPegado);
+    IA.firmas          = [];
+    IA.nArchivos       = 0;
+    _iaRellenarStep2({ paginas: 0, n_archivos: 0 });
+    _iaSetStep(2);
+    return;
+  }
+
   IA.cargando = true;
   const btn = document.getElementById('ia-btn-extraer');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Extrayendo...'; }
@@ -163,18 +195,23 @@ async function iaExtraerPDF() {
     if (!res.ok) throw new Error(data.error || 'Error extrayendo PDF');
 
     IA.pdfTexto        = data.texto        || '';
-    IA.pdfTextoPreview = data.texto_preview || data.texto || '';
     IA.firmas          = data.firmas        || [];
     IA.nArchivos       = data.n_archivos    || IA._archivos.length;
+
+    // Combinar con el texto pegado, si lo hay
+    if (textoPegado) {
+      IA.pdfTexto = (IA.pdfTexto ? IA.pdfTexto + '\n\n=== TEXTO PEGADO POR EL USUARIO ===\n\n' : '') + textoPegado;
+    }
+    IA.pdfTextoPreview = _iaPreview(IA.pdfTexto);
 
     _iaRellenarStep2(data);
     _iaSetStep(2);
   } catch (e) {
     toast('Error: ' + e.message, 5000);
-    if (btn) { btn.disabled = false; btn.textContent = '→ Extraer texto'; }
   } finally {
     IA.cargando = false;
-    if (btn) { btn.disabled = false; btn.textContent = '→ Extraer texto'; }
+    if (btn) { btn.textContent = '→ Continuar'; }
+    _iaActualizarBotonContinuar();
   }
 }
 

@@ -1,0 +1,426 @@
+
+---
+name: modelos-contratacion
+description: Convierte documentos de contratación pública municipal (informes, certificados, pliegos, resoluciones, oficios, invitaciones, actas…) en modelos reutilizables, sustituyendo todos los datos variables por marcadores {{CAMPO}} según un catálogo cerrado de campos. Usar siempre que el usuario suba o pegue un documento y pida crear un "modelo", "plantilla", "template", "plantillizar", "convertir en modelo", "poner marcadores", "sustituir por variables" o mencione marcadores {{}}. Activar también cuando pida revisar, corregir o ampliar un modelo ya existente con marcadores {{}}.
+---
+ 
+# Creación de modelos de documentos de contratación
+ 
+Convierte un documento concreto (o un formulario en blanco) en un **modelo reutilizable**: mismo texto, misma estructura, pero con los datos variables sustituidos por marcadores `{{CAMPO}}`.
+ 
+## Flujo de trabajo
+ 
+1. **Leer el documento completo** (subido o pegado).
+2. **Identificar los datos variables**: nombres, fechas, importes, referencias de expediente, direcciones, descripciones del objeto, líneas de puntos o huecos en blanco de formularios, etc.
+3. **Sustituir cada dato por su marcador** del catálogo de campos (ver abajo). El mismo dato repetido en el documento usa siempre el mismo marcador.
+4. **Conservar intacto todo lo demás**: redacción, orden, numeración de apartados, notas al pie, fórmulas de firma. No "mejorar" ni reescribir el texto salvo que el usuario lo pida.
+5. **Entregar el modelo** y, al final, listar en un bloque aparte los marcadores usados, señalando cuáles son **nuevos** (no catalogados).
+## Catálogo de campos
+ 
+Usar EXACTAMENTE estos nombres cuando el dato corresponda:
+ 
+| Marcador | Contenido |
+|---|---|
+| `{{EXPEDIENTE}}` | Número / referencia del expediente |
+| `{{OBJETO}}` | Objeto del contrato |
+| `{{DESCRIPCION}}` | Descripción del proyecto |
+| `{{ORGANISMO}}` | Organismo contratante |
+| `{{NIF}}` | NIF del organismo |
+| `{{EMAIL}}` | Email de contacto |
+| `{{TELEFONO}}` | Teléfono de contacto |
+| `{{DIRECCION}}` | Dirección postal |
+| `{{TIPO_CONTRATO}}` | Tipo de contrato (obras, servicios…) |
+| `{{PROCEDIMIENTO}}` | Procedimiento de licitación |
+| `{{TRAMITACION}}` | Tramitación (ordinaria, urgente…) |
+| `{{CPV}}` | Código CPV |
+| `{{PRESUPUESTO_BASE}}` | Presupuesto base sin IVA |
+| `{{PRESUPUESTO_IVA}}` | Presupuesto total con IVA |
+| `{{IMPORTE_IVA}}` | Importe del IVA (diferencia entre el total con IVA y la base) |
+| `{{VALOR_ESTIMADO}}` | Valor estimado del contrato |
+| `{{PLAZO}}` | Plazo de ejecución |
+| `{{FECHA_PUBLICACION}}` | Fecha de publicación |
+| `{{FECHA_LIMITE}}` | Fecha límite de presentación |
+| `{{GARANTIA}}` | Garantía definitiva (%) |
+| `{{ADJUDICATARIO}}` | Nombre del adjudicatario |
+| `{{NIF_ADJUDICATARIO}}` | NIF del adjudicatario |
+| `{{IMPORTE_ADJUDICACION}}` | Importe de adjudicación |
+| `{{IMPORTE_ADJUDICACION_IVA}}` | Importe de adjudicación con IVA |
+| `{{FECHA_ADJUDICACION}}` | Fecha de adjudicación |
+| `{{FECHA_FORMALIZACION}}` | Fecha de formalización del contrato |
+| `{{URL_LICITACION}}` | URL de la licitación en la PLACSP |
+| `{{FINANCIACION_UE}}` | Programa de financiación UE |
+| `{{SERIE_DOCUMENTAL}}` | Serie documental |
+| `{{FECHA}}` | Fecha de hoy (al generar) |
+| `{{RESPONSABLE}}` | Responsable del contrato |
+| `{{RESPONSABLE_EMAIL}}` | Email del responsable del contrato |
+| `{{SOLICITUD}}` | Solicitud de la concejalía (sección 1) |
+| `{{RESERVA_CREDITO}}` | Reserva de crédito / nº documento RC (sección 5) |
+| `{{DIRECTOR_FACULTATIVO}}` | Director facultativo y coordinador de seguridad (sección 6) |
+| `{{FACULTATIVO_RECEPCION}}` | Facultativo municipal para recepcionar obras (sección 7) |
+| `{{EMPRESAS_INVITADAS}}` | Lista de empresas/licitadores invitados (sección 8) |
+| `{{EMPRESA_NOMBRE}}` | Nombre de la empresa (solo en modelos con porempresa:1) |
+| `{{EMPRESA_CIF}}` | CIF de la empresa (solo en modelos con porempresa:1) |
+| `{{EMPRESA_TELEFONO}}` | Teléfono de la empresa (solo en modelos con porempresa:1) |
+| `{{EMPRESA_EMAIL}}` | Email de la empresa (solo en modelos con porempresa:1) |
+| `{{FINANCIACION}}` | Financiación por administración (sección 9) |
+ 
+## Reglas de sustitución
+ 
+- **Campos no catalogados**: cualquier otro dato variable se marca igualmente entre `{{}}`, con nombre en MAYÚSCULAS y guiones bajos, descriptivo y corto (p. ej. `{{FECHA_INICIO_EJECUCION}}`, `{{LUGAR_EXPEDICION}}`, `{{CARGO_FIRMANTE}}`). Listarlos como "nuevos" al final.
+- **Formularios en blanco**: las líneas de puntos (………), guiones o huecos se sustituyen por el marcador que corresponda al dato que debería ir ahí, deduciéndolo del contexto y de las notas del propio formulario.
+- **Documentos dirigidos a cada empresa** (invitaciones, requerimientos, notificaciones individuales): usar los campos `{{EMPRESA_*}}` para los datos del destinatario y añadir en la primera línea del modelo el indicador `porempresa:1`.
+- **Importes en letra y cifra**: si el documento exige el importe en letra además de en cifra, usar el mismo nombre de campo con sufijo `_LETRA` (p. ej. `{{IMPORTE_ADJUDICACION_LETRA}}`).
+- **Fechas descompuestas** ("a … de … de …"): sustituir el conjunto por un único marcador de fecha completa (p. ej. `{{FECHA}}`), no un marcador por pieza, salvo que el documento requiera realmente las piezas por separado (p. ej. anualidades).
+- **Datos fijos institucionales** (p. ej. "Ayuntamiento de Totana" cuando el modelo es siempre del mismo organismo): preguntar solo si hay duda; por defecto, sustituir por `{{ORGANISMO}}` para máxima reutilización.
+- **No inventar contenido**: si un hueco del formulario no permite deducir qué dato va, usar `{{PENDIENTE_DEFINIR}}` y avisar al usuario.
+## Formato de salida
+ 
+- Entregar el modelo como archivo Markdown (.md) en `/mnt/user-data/outputs/`, respetando la estructura del original (títulos, párrafos, notas).
+- Si el usuario pide expresamente .docx u .odt, generar ese formato (consultando la skill docx si procede) manteniendo los marcadores literales `{{CAMPO}}`.
+- Cerrar la respuesta con la lista de marcadores usados: catalogados por un lado, nuevos por otro
+
+---
+name: informe-juridico-local
+description: >
+  Redacta informes jurídicos formales para la administración local española con estructura
+  obligatoria (encabezamiento, antecedentes, fundamentos de derecho y conclusión/propuesta).
+  Incluye normativa específica del Ayuntamiento de Totana (Murcia) y la Región de Murcia (LRLRM,
+  BORM, Consejo Jurídico, ordenanzas municipales).
+  Usar siempre que el usuario pida redactar un informe jurídico, informe de Secretaría, dictamen,
+  informe previo a acuerdo o cualquier documento jurídico-administrativo municipal. Activar cuando
+  el usuario mencione "ayuntamiento", "pleno", "junta de gobierno", "secretario municipal",
+  "régimen local", "expediente administrativo", "propuesta de resolución", normativa local
+  (LBRL, LPAC, LRJSP, LCSP, TRLHL, LRLRM), o términos como "Totana", "Murcia", "BORM",
+  "pedanía", "ordenanza municipal", o describa un supuesto de hecho en el contexto de una
+  entidad local española o murciana.
+---
+ 
+# Skill: Informes Jurídicos para la Administración Local Española
+ 
+## Objetivo
+ 
+Redactar informes jurídicos rigurosos, formales y completos para entidades que integran
+la Administración Local española (ayuntamientos, diputaciones provinciales, mancomunidades,
+consorcios locales, etc.), siguiendo la estructura clásica de los informes administrativos
+y la normativa vigente aplicable.
+ 
+---
+ 
+## Tipos de informes cubiertos
+ 
+1. **Informe de Secretaría** — preceptivo en los supuestos del art. 3 RD 128/2018 y art. 92.bis LBRL.
+2. **Informe jurídico de servicios** — emitido por la asesoría jurídica o técnico habilitado.
+3. **Dictamen / Informe previo a acuerdo** — informe que precede a la adopción de acuerdos por órganos colegiados (Pleno, Junta de Gobierno Local).
+---
+ 
+## Normativa de referencia prioritaria
+ 
+Citar siempre que sea pertinente, con número de ley, artículo y apartado concretos:
+ 
+| Abreviatura | Norma completa |
+|---|---|
+| **LBRL** | Ley 7/1985, de 2 de abril, Reguladora de las Bases del Régimen Local |
+| **TRRL** | Real Decreto Legislativo 781/1986 (texto refundido disposiciones régimen local) |
+| **ROF** | Real Decreto 2568/1986, Reglamento de Organización, Funcionamiento y Régimen Jurídico de las Entidades Locales |
+| **LPAC** | Ley 39/2015, de 1 de octubre, del Procedimiento Administrativo Común de las Administraciones Públicas |
+| **LRJSP** | Ley 40/2015, de 1 de octubre, de Régimen Jurídico del Sector Público |
+| **LCSP** | Ley 9/2017, de 8 de noviembre, de Contratos del Sector Público |
+| **TRLHL** | Real Decreto Legislativo 2/2004, Texto Refundido de la Ley Reguladora de las Haciendas Locales |
+| **RD 128/2018** | Real Decreto 128/2018, sobre régimen jurídico del personal funcionario de Administración Local con habilitación de carácter nacional |
+ 
+Complementar, cuando corresponda, con:
+- Legislación autonómica aplicable (mencionar la comunidad autónoma si el usuario la indica).
+- Jurisprudencia del Tribunal Supremo (Sala de lo Contencioso-Administrativo) o doctrina del Consejo de Estado / órganos consultivos autonómicos, cuando refuerce la posición jurídica.
+- Circulares o instrucciones de la Subdirección General de Cooperación Local (MHFP) si son relevantes.
+---
+ 
+## Normativa específica: Ayuntamiento de Totana (Región de Murcia)
+ 
+Cuando el informe se emita para el **Ayuntamiento de Totana** (municipio de la Región de Murcia, CP 30850, Plaza de la Constitución, 1), añadir o priorizar las siguientes fuentes normativas:
+ 
+### Normativa autonómica de la Región de Murcia
+ 
+| Abreviatura | Norma completa |
+|---|---|
+| **LRLRM** | Ley 6/1988, de 25 de agosto, de Régimen Local de la Región de Murcia |
+| **EARM** | Ley Orgánica 4/1982, de 9 de junio, de Estatuto de Autonomía para la Región de Murcia |
+| **Ley 6/2014** | Ley 6/2014, de 13 de octubre, de medidas urgentes para la garantía y continuidad de los servicios públicos en la CARM, derivada de la LRSAL |
+| **Ley DTCCEL** | Ley de Descentralización Territorial y Colaboración entre la Comunidad Autónoma y las Entidades Locales de la Región de Murcia |
+| **Ley 4/2009** | Ley 4/2009, de 14 de mayo, de Protección Ambiental Integrada de la Región de Murcia (para expedientes de actividades) |
+| **BORM** | Boletín Oficial de la Región de Murcia (publicación oficial de normativa autonómica y municipal) |
+ 
+> **Nota sobre uniprovincialidad:** La Región de Murcia es uniprovincial, por lo que la Comunidad Autónoma asume estatutariamente las competencias propias de las Diputaciones Provinciales (art. 30.2 EARM). No existe Diputación Provincial de Murcia como ente separado; la asistencia a municipios corresponde a la CARM.
+ 
+> **Nota sobre pedanías:** El Ayuntamiento de Totana dispone de pedanías (diputaciones) con Alcaldes Pedáneos y Juntas Vecinales como órganos desconcentrados (art. 39 y 72 LRLRM). No tienen personalidad jurídica propia; actúan como representación del Alcalde (art. 122 ROF).
+ 
+### Ordenanzas municipales vigentes del Ayuntamiento de Totana
+ 
+Citar cuando sea pertinente según la materia del informe:
+ 
+**Urbanismo y actividades:**
+- Ordenanza Municipal sobre Implantación de Actividades en el Municipio de Totana (aprobada 28 mayo 2014, modificada 25 julio 2022)
+- Reglamento del Consejo Municipal Sectorial de Urbanismo (17 octubre 2016)
+- Plan General Municipal de Ordenación (PGMO, aprobado Pleno 26 marzo 2015 — verificar vigencia y posibles modificaciones puntuales)
+**Hacienda y tributos locales:**
+- Ordenanza Reguladora del Impuesto sobre Bienes Inmuebles
+- Ordenanza Reguladora del Impuesto sobre Actividades Económicas
+- Ordenanza Reguladora del Impuesto sobre Instalaciones, Construcciones y Obras (ICIO)
+- Ordenanza Fiscal Reguladora de la Tasa por la Realización de la Actividad Administrativa de Otorgamiento de Licencias Urbanísticas
+- Ordenanza Reguladora de la Tasa por Tramitación Administrativa de Licencias de Actividad
+- Ordenanza Fiscal Reguladora de la Tasa por la Realización de la Actividad Administrativa de Expedición de Documentos Administrativos y Otros Servicios
+- Ordenanza Reguladora de la Tasa por la Prestación del Servicio de Recogida de Basuras
+- Ordenanza Reguladora de la Tasa por la Prestación del Servicio del Cementerio Municipal
+- Ordenanza Fiscal Reguladora de la Tasa por el Servicio de Extinción de Incendios
+- Ordenanza Fiscal Reguladora de la Tasa por la Utilización Privativa o Aprovechamiento Especial del Dominio Público Municipal
+- Ordenanza Fiscal Reguladora de la Tasa por Autorización de Acometidas y Servicios de Alcantarillado y Depuración de Aguas Residuales
+- Ordenanza General de Gestión, Recaudación e Inspección de Tributos y Resto de Ingresos de Derecho Público Local
+**Servicios municipales:**
+- Ordenanza Municipal de Higiene Urbana (modificada 2 septiembre 2013)
+- Reglamento Municipal del Servicio de Alcantarillado y Desagüe de las Aguas Residuales
+- Reglamento del Servicio de Abastecimiento de Aguas (modificado 16 julio 2013)
+- Ordenanza Municipal sobre Implantación de Actividades (modificada 25 julio 2022)
+- Ordenanza Municipal sobre Instalación y Funcionamiento de Infraestructuras Radioeléctricas
+**Servicios sociales y precios públicos:**
+- Norma Reguladora del Precio Público por la Prestación de los Servicios de las Escuelas Infantiles Municipales
+- Norma Reguladora de Precios Públicos por la Prestación de los Servicios del Área de Personas Mayores y Dependencia desde Bienestar Social
+- Norma Reguladora de Precio Público de los Centros de Día de Personas con Discapacidad Intelectual y Enfermedad Mental
+- Norma Reguladora de Precio Público por la Prestación de Servicios de la Concejalía de Servicios Sociales
+**Otras ordenanzas:**
+- Ordenanza Municipal sobre Protección y Tenencia de Animales de Compañía (aprobada definitivamente abril 1997; normativa supletoria: Ley 10/1990, de 27 de agosto, de la CARM sobre Protección y Defensa de Animales de Compañía)
+### Órganos consultivos autonómicos relevantes
+ 
+- **Consejo Jurídico de la Región de Murcia** — órgano consultivo superior de la CARM equivalente al Consejo de Estado en el ámbito autonómico; sus dictámenes son preceptivos en determinados supuestos (contratos, responsabilidad patrimonial, recursos extraordinarios de revisión, etc.).
+- **Intervención General de la CARM** — en materia de control financiero y fiscalización cuando corresponda coordinación con la hacienda autonómica.
+### Datos de identificación del Ayuntamiento de Totana
+ 
+```
+Ayuntamiento de Totana
+Plaza de la Constitución, 1
+30850 Totana (Murcia)
+Tlf: 968 418 151
+CIF: [completar]
+```
+ 
+---
+ 
+## Estructura obligatoria del informe
+ 
+Todo informe debe seguir esta estructura, con los epígrafes en **MAYÚSCULAS Y NEGRITA**:
+ 
+### 1. ENCABEZAMIENTO
+ 
+```
+INFORME [JURÍDICO / DE SECRETARÍA / PREVIO A ACUERDO]
+ 
+Asunto:        [Materia objeto del informe]
+Expediente:    [Número de expediente, si se facilita]
+Órgano:        [Órgano que solicita el informe o ante quien se emite]
+Fecha:         [Fecha de emisión o "____________, a ___ de ________ de 20__"]
+Emite:         [Cargo del funcionario / Secretaría General / Servicios Jurídicos]
+```
+ 
+---
+ 
+### 2. **ANTECEDENTES**
+ 
+Relación cronológica y objetiva de los hechos relevantes que motivan el informe. Redactar en párrafos numerados (PRIMERO, SEGUNDO, TERCERO…). Incluir:
+- Descripción del expediente o solicitud que origina el informe.
+- Actuaciones previas realizadas.
+- Documentación obrante en el expediente.
+No emitir valoraciones jurídicas en este apartado.
+ 
+---
+ 
+### 3. **FUNDAMENTOS DE DERECHO**
+ 
+Análisis jurídico estructurado en párrafos numerados (I, II, III…). Cada bloque debe tratar un aspecto jurídico diferenciado:
+ 
+- **Competencia y habilitación** — qué órgano es competente y en virtud de qué norma.
+- **Marco normativo aplicable** — leyes, reglamentos, ordenanzas aplicables al supuesto.
+- **Análisis del fondo** — aplicación razonada de la normativa al caso concreto.
+- **Procedimiento** — trámites exigibles, plazos, audiencia, informes preceptivos.
+- **Jurisprudencia o doctrina** (si aplica) — citar con sala, fecha y ECLI o número de recurso.
+Usar el estilo: *"De conformidad con el artículo X de la Ley Y…"*, *"En virtud de lo dispuesto en…"*, *"A tenor de lo establecido en…"*, evitando coloquialismos.
+ 
+---
+ 
+### 4. **CONCLUSIÓN** (o **PROPUESTA DE RESOLUCIÓN** en informes preceptivos)
+ 
+Síntesis clara y directa de la posición jurídica. Puede adoptar dos formas:
+ 
+**Forma A — Conclusión simple:**
+> En virtud de los antecedentes expuestos y los fundamentos de derecho invocados, se informa [FAVORABLEMENTE / DESFAVORABLEMENTE / CON LAS OBSERVACIONES QUE SE INDICAN], a los efectos oportunos.
+ 
+**Forma B — Propuesta de resolución/acuerdo:**
+> En consecuencia, se propone al [órgano competente] la adopción del siguiente acuerdo: [texto del acuerdo propuesto].
+ 
+Añadir siempre la cláusula de subordinación:
+> No obstante, el órgano competente resolverá lo que estime procedente en Derecho.
+ 
+---
+ 
+### 5. FIRMA Y PIE
+ 
+```
+[Lugar], a ___ de __________ de 20__.
+ 
+El/La [Secretario/a General / Técnico/a Jurídico/a / Asesor/a Jurídico/a]
+ 
+Fdo.: ___________________________
+```
+ 
+---
+ 
+## Instrucciones de redacción
+ 
+### Tono y lenguaje
+- Lenguaje jurídico riguroso, formal e impersonal (tercera persona o voz pasiva).
+- Evitar gerundios ilegales ("decreto resolviendo" → "decreto por el que se resuelve").
+- Usar locuciones latinas con moderación y solo cuando aporten precisión (*ex lege*, *a quo*, *ad quem*).
+- Párrafos densos pero bien estructurados; usar puntos y seguido, no excesivos puntos y aparte.
+- No usar anglicismos ni lenguaje coloquial.
+### Citas normativas
+- Formato: "artículo X.Y [letra] de la Ley Z/YYYY, de DD de [mes], [nombre oficial completo]".
+- En citas sucesivas a la misma norma, usar la abreviatura establecida en la primera cita.
+- Si hay modificaciones relevantes, mencionar la norma modificadora.
+### Cuando el usuario no proporciona todos los datos
+- Indicar con corchetes los campos que debe completar: `[número de expediente]`, `[fecha]`, `[nombre del solicitante]`.
+- No inventar hechos ni datos concretos del expediente.
+- Si la materia es ambigua, elegir el encuadre jurídico más probable y señalarlo explícitamente.
+### Advertencia de responsabilidad
+Al final del informe (antes de la firma), incluir cuando corresponda:
+> *El presente informe se emite a los solos efectos jurídico-administrativos indicados, sin perjuicio de otras consideraciones técnicas, económicas o de oportunidad que corresponda valorar al órgano competente.*
+ 
+---
+ 
+## Flujo de trabajo al recibir una solicitud
+ 
+1. **Identificar** el tipo de informe solicitado (Secretaría, servicios jurídicos, dictamen previo).
+2. **Extraer** del mensaje del usuario: materia, órgano, hechos relevantes, normativa mencionada.
+3. **Completar** los datos que falten con corchetes indicativos.
+4. **Redactar** siguiendo la estructura obligatoria de 5 secciones.
+5. **Revisar** que cada fundamento de derecho cita artículo concreto y que la conclusión es coherente con el análisis.
+6. **Presentar** el informe completo, listo para copiar y pegar, sin preámbulos innecesarios.
+---
+ 
+## Ejemplos de solicitudes que deben activar este skill
+ 
+- "Redacta un informe de Secretaría sobre la prórroga de un contrato de servicios de limpieza"
+- "Necesito un informe jurídico previo al acuerdo de Pleno sobre modificación de la RPT"
+- "Elabora un dictamen sobre la competencia municipal para instalar cámaras de videovigilancia"
+- "Informe jurídico sobre la legalidad de una subvención directa sin concurrencia competitiva"
+- "Necesito un informe sobre si el Alcalde puede delegar la firma de contratos menores"
+---
+ 
+## Referencias adicionales
+ 
+Consultar `references/normativa-local.md` para tablas de competencias orgánicas
+y plazos procedimentales habituales en la administración local.
+
+
+# Referencia: Normativa y Competencias en la Administración Local Española
+ 
+## Tabla de competencias orgánicas (LBRL + ROF)
+ 
+| Materia | Órgano competente | Base legal |
+|---|---|---|
+| Aprobación presupuesto | Pleno | Art. 22.2.a) LBRL |
+| Modificaciones de crédito | Pleno (regla general) | Art. 22.2.e) LBRL |
+| Aprobación RPT | Pleno | Art. 22.2.i) LBRL |
+| Contratos > umbral JGL | Pleno | Art. 22.2.k) LBRL |
+| Contratos menores | Alcalde / Concejal delegado | Art. 21.1.ñ) LBRL; art. 118 LCSP |
+| Concesión de licencias | Alcalde (delegable en JGL o Concejal) | Art. 21.1.q) LBRL |
+| Nombramiento personal eventual | Alcalde | Art. 21.1.h) LBRL |
+| Resolución recursos de reposición | Alcalde (actos propios) / Pleno (actos del Pleno) | Art. 52 LBRL; art. 123 LPAC |
+| Aprobación convenios interadministrativos | Pleno (regla general) | Art. 22.2 LBRL; art. 47 LRJSP |
+| Declaración de urgencia | Alcalde | Art. 21.1.m) LBRL |
+| Enajenación de bienes patrimoniales | Pleno (> 10% recursos ordinarios) | Art. 22.2.j) LBRL |
+ 
+---
+ 
+## Umbrales de contratación (LCSP 2023 — referencia orientativa)
+ 
+| Tipo de contrato | Umbral contrato menor | Procedimiento negociado sin publicidad | Abierto simplificado |
+|---|---|---|---|
+| Obras | < 40.000 € | < 1.000.000 € | < 2.000.000 € |
+| Suministros y servicios | < 15.000 € | < 100.000 € | < 100.000 € |
+ 
+> ⚠️ Verificar umbrales vigentes en cada ejercicio. La LCSP puede ser modificada.
+> Los contratos menores no pueden fraccionarse artificialmente (art. 99.2 LCSP).
+ 
+---
+ 
+## Plazos procedimentales clave (LPAC)
+ 
+| Actuación | Plazo | Base legal |
+|---|---|---|
+| Resolución procedimiento general | 3 meses (salvo norma especial) | Art. 21.3 LPAC |
+| Silencio administrativo (regla general) | Estimatorio a los 3 meses | Art. 24 LPAC |
+| Recurso de reposición (interposición) | 1 mes (actos expresos) / 3 meses (silencio) | Art. 124 LPAC |
+| Recurso de reposición (resolución) | 1 mes | Art. 124.2 LPAC |
+| Recurso contencioso-administrativo | 2 meses (actos expresos) / 6 meses (silencio) | Art. 46 LJCA |
+| Audiencia al interesado | Mínimo 10 días / máximo 15 días | Art. 82 LPAC |
+| Información pública | Mínimo 20 días | Art. 83 LPAC |
+| Notificación de resolución | 10 días desde firma | Art. 40 LPAC |
+ 
+---
+ 
+## Informes preceptivos más habituales
+ 
+| Informe | Quién lo emite | Cuándo es preceptivo | Base legal |
+|---|---|---|---|
+| Informe de Secretaría (legalidad) | Secretario/a municipal | Plenos, JGL, propuestas de acuerdo | Art. 3.b) RD 128/2018; art. 92.bis LBRL |
+| Informe de Intervención (fiscalización) | Interventor/a | Actos con repercusión económica | Art. 4 RD 128/2018; art. 213 TRLHL |
+| Informe jurídico previo | Servicios jurídicos | Contratos, convenios, disposiciones | Art. 172 ROF |
+| Informe técnico | Técnico competente | Licencias, urbanismo, medioambiente | Normativa sectorial |
+| Memoria / Informe de necesidad | Unidad promotora | Contratación pública | Art. 28 LCSP |
+ 
+---
+ 
+## Estructura de la Administración Local — recordatorio
+ 
+### Órganos necesarios (art. 19 LBRL)
+- **Alcalde / Presidente** — órgano ejecutivo unipersonal; dicta resoluciones.
+- **Tenientes de Alcalde** — sustituyen al Alcalde; pueden tener delegaciones.
+- **Pleno** — órgano deliberante máximo; adopta acuerdos.
+- **Junta de Gobierno Local** (municipios > 5.000 hab.) — asiste al Alcalde; resuelve por delegación.
+### Actos y resoluciones
+- El **Alcalde** dicta **Resoluciones** (actos unipersonales).
+- El **Pleno y JGL** adoptan **Acuerdos** (órganos colegiados).
+- Los **Concejales delegados** pueden dictar **Decretos** en materias delegadas.
+---
+ 
+## Fórmulas y expresiones de uso frecuente
+ 
+### Apertura de los fundamentos de derecho
+- "De conformidad con lo dispuesto en el artículo X de la Ley Y…"
+- "En virtud de lo establecido en…"
+- "A tenor de lo preceptuado en…"
+- "Visto cuanto antecede y a la vista de la normativa aplicable…"
+### Remisión a jurisprudencia
+- "En este sentido se ha pronunciado el Tribunal Supremo, Sala de lo Contencioso-Administrativo, Sección X, en Sentencia de [fecha] (ECLI:ES:TS:[año]:[número])…"
+- "Conforme a la doctrina del Consejo de Estado / [Consejo Consultivo autonómico] en Dictamen núm. X/YYYY…"
+### Conclusión favorable
+- "Por todo lo expuesto, se informa favorablemente la propuesta de [acto], al amparo de los preceptos citados."
+### Conclusión desfavorable
+- "En consecuencia, se informa desfavorablemente la propuesta sometida a consideración, por resultar contraria a lo dispuesto en [norma], sin perjuicio de que, subsanados los defectos advertidos, pueda reiterarse la solicitud."
+### Observaciones condicionadas
+- "Se informa favorablemente, condicionado a que se subsanen las siguientes deficiencias: [lista]."
+---
+ 
+## Comunidades autónomas — legislación local complementaria (referencia)
+ 
+| CCAA | Ley de Régimen Local autonómica principal |
+|---|---|
+| Cataluña | Decreto Legislativo 2/2003 (TRLMRLC) |
+| País Vasco | Ley 2/2016 de Instituciones Locales de Euskadi |
+| Andalucía | Ley 5/2010 de Autonomía Local de Andalucía |
+| Aragón | Ley 7/1999 de Administración Local de Aragón |
+| Castilla y León | Ley 1/1998 de Régimen Local |
+| Galicia | Ley 5/1997 de Administración Local de Galicia |
+| Comunidad Valenciana | Ley 8/2010 de Régimen Local |
+| Madrid | Ley 2/2003 de Administración Local |
+| Navarra | Ley Foral 6/1990 de la Administración Local |
+ 
+> Cuando el usuario indique la comunidad autónoma, citar también la ley autonómica aplicable.
+ 
