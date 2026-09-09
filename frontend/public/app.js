@@ -1308,11 +1308,14 @@ async function renderCatsTab() {
   const el = document.getElementById('catgrid');
   if (!cats.length) { el.innerHTML='<p style="color:var(--text3);font-size:13px">No hay categorías.</p>'; return; }
 
-  let html = '';
-  walkCatTree((c, depth) => {
+  const arrow = `<svg width="11" height="11" viewBox="0 0 11 11" class="catarrow" style="flex-shrink:0;transition:transform .15s"><path d="M2.5 4l3 3 3-3" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>`;
+
+  function renderNode(c, depth) {
     const id = Number(c.id);
+    const children = catChildren(id);
+    const hasKids = children.length > 0;
     const folder = c.nombre.replace(/[<>:"/\\|?*]/g,'').replace(/\s+/g,'_').trim();
-    html += `<div class="cattree-row" style="margin-left:${depth*24}px;border-left:3px solid ${COLORS[c.color]||COLORS.blue}">
+    let html = `<div class="cattree-row" style="margin-left:${depth*24}px;border-left:3px solid ${COLORS[c.color]||COLORS.blue};${hasKids?'cursor:pointer':''}" ${hasKids?`onclick="toggleCatRow(this,${id})"`:''}>
       <div class="cattree-ico">${escapeHtml(c.icono)}</div>
       <div class="cattree-info">
         <div class="cattree-name">${escapeHtml(c.nombre)}</div>
@@ -1321,14 +1324,32 @@ async function renderCatsTab() {
       <span class="cattree-count">${c.total_modelos} modelo${c.total_modelos===1?'':'s'}</span>
       <span class="catcard-folder">${escapeHtml(folder)}/</span>
       ${me.rol==='admin'?`
-      <button class="btn btn-sm" onclick="showCatFiles(${id},${JSON.stringify(c.nombre)})">Abrir</button>
-      <button class="btn btn-sm" onclick="openCatModal(${id})">Editar</button>
-      <button class="btn btn-sm btn-danger" onclick="deleteCat(${id})">Eliminar</button>
-      <button class="btn btn-sm btn-primary" onclick="openCatModal(null,${id})" title="Nueva subcategoría">+ Sub</button>`:''}
+      <button class="btn btn-sm" onclick="event.stopPropagation();showCatFiles(${id},${JSON.stringify(c.nombre)})">Abrir</button>
+      <button class="btn btn-sm" onclick="event.stopPropagation();openCatModal(${id})">Editar</button>
+      <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteCat(${id})">Eliminar</button>
+      <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openCatModal(null,${id})" title="Nueva subcategoría">+ Sub</button>`:''}
+      ${hasKids ? arrow : '<span style="width:11px;flex-shrink:0"></span>'}
     </div>`;
-  });
+    if (hasKids) {
+      html += `<div class="catkids-admin open" id="cka-${id}">`;
+      children.forEach(child => { html += renderNode(child, depth + 1); });
+      html += `</div>`;
+    }
+    return html;
+  }
+
+  let html = '';
+  catChildren(null).forEach(c => { html += renderNode(c, 0); });
 
   el.innerHTML = html || '<p style="color:var(--text3);font-size:13px">No hay categorías.</p>';
+}
+
+function toggleCatRow(row, id) {
+  const kids = document.getElementById(`cka-${id}`);
+  if (!kids) return;
+  kids.classList.toggle('open');
+  const arr = row.querySelector('.catarrow');
+  if (arr) arr.style.transform = kids.classList.contains('open') ? 'rotate(0deg)' : 'rotate(-90deg)';
 }
 
 async function showCatFiles(id, nombre) {
