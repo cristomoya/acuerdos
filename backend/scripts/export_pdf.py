@@ -28,25 +28,35 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   }
 }
 body {
-  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Liberation Serif', 'Times New Roman', Georgia, serif;
   font-size: 11pt;
-  line-height: 1.7;
-  color: #1a1a18;
+  line-height: 1.5;
+  color: #1c1f26;
 }
 h1 {
+  font-family: 'Liberation Serif', 'Times New Roman', Georgia, serif;
   font-size: 14pt;
   font-weight: 700;
   text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.5pt;
+  border-bottom: 0.9pt solid #0f2a40;
+  padding-bottom: 0.3cm;
   margin-bottom: 1cm;
   margin-top: 0.5cm;
 }
 h2 {
+  font-family: 'Liberation Serif', 'Times New Roman', Georgia, serif;
   font-size: 12pt;
   font-weight: 700;
+  color: #0f2a40;
+  border-bottom: 0.5pt solid #0f2a40;
+  padding-bottom: 0.1cm;
   margin-top: 0.8cm;
   margin-bottom: 0.4cm;
 }
 h3 {
+  font-family: 'Liberation Serif', 'Times New Roman', Georgia, serif;
   font-size: 11pt;
   font-weight: 700;
   margin-top: 0.6cm;
@@ -71,23 +81,22 @@ li.task-item {
 }
 blockquote {
   font-style: italic;
-  border-left: 3px solid #ccc;
-  padding-left: 0.5cm;
+  border-left: 2pt solid #0f2a40;
+  background: #f4f5f6;
+  padding: 0.25cm 0.4cm;
   margin-left: 0.5cm;
   margin-right: 0.5cm;
-  color: #444;
+  color: #1c1f26;
 }
 code {
   font-family: 'Courier New', monospace;
   font-size: 10pt;
-  background: #f5f5f5;
+  background: #f4f5f6;
   padding: 0.05cm 0.15cm;
-  border-radius: 2pt;
 }
 pre {
-  background: #f5f5f5;
+  background: #f4f5f6;
   padding: 0.4cm;
-  border-radius: 3pt;
   overflow-x: auto;
   font-size: 10pt;
 }
@@ -102,33 +111,35 @@ table {
   font-size: 10pt;
 }
 th, td {
-  border: 0.5pt solid #999;
+  border: 0.5pt solid #8a8f99;
   padding: 0.2cm 0.3cm;
   text-align: left;
 }
 th {
-  background: #f0f0f0;
-  font-weight: 600;
+  border-bottom: 1pt solid #0f2a40;
+  font-weight: 700;
+  color: #0f2a40;
 }
 hr {
   border: none;
-  border-top: 0.5pt solid #999;
+  border-top: 0.5pt solid #8a8f99;
   margin: 0.5cm 0;
 }
 .field-marker {
-  color: #0000CC;
-  background: #FFFF99;
-  padding: 0.05cm 0.1cm;
-  border-radius: 2pt;
+  color: #0f2a40;
+  background: #eceef1;
+  padding: 0.02cm 0.1cm;
   font-family: monospace;
   font-size: 10pt;
+  font-weight: 700;
 }
 .header-inst {
   text-align: center;
-  font-size: 10pt;
-  color: #555;
+  font-size: 9.5pt;
+  letter-spacing: 0.3pt;
+  color: #5b6470;
   margin-bottom: 0.3cm;
-  border-bottom: 0.5pt solid #ccc;
+  border-bottom: 0.5pt solid #8a8f99;
   padding-bottom: 0.2cm;
 }
 .diagram-block {
@@ -141,19 +152,17 @@ hr {
   height: auto;
   display: block;
   margin: 0 auto;
-  border: 0.5pt solid #ddd;
-  border-radius: 4pt;
+  border: 0.5pt solid #8a8f99;
   padding: 0.3cm;
   background: #fff;
 }
 .diagram-missing {
   text-align: center;
-  color: #888;
+  color: #5b6470;
   font-style: italic;
   font-size: 10pt;
   padding: 0.5cm;
-  border: 0.5pt dashed #ccc;
-  border-radius: 4pt;
+  border: 0.5pt dashed #8a8f99;
   margin: 0.5cm 0;
 }
 </style>

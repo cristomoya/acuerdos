@@ -73,18 +73,25 @@ ESCUDO_W_PX, ESCUDO_H_PX = 280, 254
 # Combinaciones permitidas: blanco o negro sobre azul; azul o negro sobre
 # blanco (sec. 6.2). No se usan colores no corporativos (naranja, dorado...)
 # en ningún acento ni callout.
-AZUL_INS    = "#0075bf"   # azul corporativo (color principal)
-AZUL_OSCURO = "#0f2a40"   # azul secundario (acentos oscuros, p.ej. firma)
-AZUL_TINT   = "#eaf4fb"   # tinte muy claro del azul (fondos de aviso/notas)
-AZUL_TINT_B = "#bfe0f3"   # tinte medio del azul (bordes de aviso/notas)
+#
+# Diseño "documento serio": el azul corporativo queda reservado a filetes y
+# líneas finas (nunca como relleno de bloque tipo tarjeta web); el texto de
+# cabeceras, títulos y totales usa el azul oscuro/casi negro institucional,
+# y las tablas se resuelven con reglas y negrita en vez de fondos de color.
+AZUL_INS    = "#0075bf"   # azul corporativo (solo filetes/líneas finas)
+AZUL_OSCURO = "#0f2a40"   # azul institucional oscuro (títulos, cabeceras, firma)
+AZUL_TINT   = "#f4f5f6"   # fondo neutro muy claro (notas/citas, sin tinte de color)
+AZUL_TINT_B = "#c9ccd1"   # borde neutro para notas/citas
 GRIS_LABEL = "#5b6470"   # etiquetas tabla
-GRIS_TEXTO = "#262d3a"   # texto cuerpo (negro, sec. 7.1 "Texto párrafo: Negro")
-GRIS_CLARO = "#e2e4e8"   # líneas separadoras
+GRIS_TEXTO = "#1c1f26"   # texto cuerpo (negro, sec. 7.1 "Texto párrafo: Negro")
+GRIS_CLARO = "#c7cad0"   # líneas separadoras
 GRIS_BG    = "#f3f5f8"   # fondo fila total / fondo CSV
-GRIS_META  = "#9aa0a8"   # texto secundario
+GRIS_META  = "#5b6470"   # texto secundario
 
-# Tipografía corporativa (sec. 5.1): HK Grotesk, con Inter como alternativa
-# (sec. 2.1.3, usada en el escudo) y fallback a fuentes del sistema.
+# Tipografía: cuerpo en serif clásica (registro formal/administrativo);
+# HK Grotesk (tipografía corporativa, sec. 5.1) se reserva para etiquetas,
+# eyebrows y textos auxiliares en mayúsculas, no para el texto de lectura.
+FONT_SERIF = "'Liberation Serif', 'Times New Roman', Georgia, serif"
 FONT_SANS = "'HK Grotesk', Inter, Arial, sans-serif"
 FONT_MONO = "'Liberation Mono', Consolas, monospace"
 
@@ -215,17 +222,18 @@ def addTableCellStyle(doc, name, bg=None, border_bottom=None,
 def applyAllStyles(doc):
     """Define todos los estilos de contenido."""
     # ── párrafos ──
-    addParaStyle(doc, 'BodyText',    '10pt', mb='0.25cm', lh='100%',
-                 color=GRIS_TEXTO, text_indent='1.2cm')
+    addParaStyle(doc, 'BodyText',    '10pt', mb='0.25cm', lh='135%',
+                 color=GRIS_TEXTO, text_indent='1.2cm', align='justify',
+                 font=FONT_SERIF)
     addParaStyle(doc, 'BodySmall',   '8.5pt', mb='0.2cm', lh='160%',
-                 color='#5b6470')
+                 color=GRIS_META, font=FONT_SERIF)
     addParaStyle(doc, 'BodyNote',    '9pt', mb='0.15cm', lh='160%',
-                 color='#5b6470')
-    # Cita (blockquote `>`): fondo en el tinte institucional, cursiva,
+                 color=GRIS_META, font=FONT_SERIF, italic=True)
+    # Cita (blockquote `>`): fondo neutro (no tintado de color), cursiva,
     # márgenes laterales más estrechos que el cuerpo (queda como un bloque
     # indentado dentro de la página) y sangría de primera línea.
     addParaStyle(doc, 'CitaInst',    '9.5pt', italic=True, mb='0.3cm', mt='0.3cm',
-                 lh='150%', color=AZUL_OSCURO, bg=AZUL_TINT,
+                 lh='150%', color=GRIS_TEXTO, bg=AZUL_TINT, font=FONT_SERIF,
                  margin_left='1.2cm', margin_right='1.2cm',
                  text_indent='0.6cm',
                  padding_top='0.25cm', padding_bottom='0.25cm',
@@ -233,7 +241,7 @@ def applyAllStyles(doc):
 
     # Cabecera institución
     addParaStyle(doc, 'InstNombre',  '14pt', bold=True, mb='0.1cm', mt='0cm',
-                 font=FONT_SANS, color=AZUL_INS, lh='110%')
+                 font=FONT_SERIF, color=AZUL_OSCURO, lh='110%')
     addParaStyle(doc, 'InstSubdep',  '7pt', mb='0.1cm', mt='0.1cm',
                  font=FONT_SANS, color=GRIS_LABEL, lh='110%')
     addParaStyle(doc, 'InstDirec',   '7pt', mb='0cm', font=FONT_SANS,
@@ -244,97 +252,94 @@ def applyAllStyles(doc):
     # del escudo, solapando con el nombre de la institución de al lado)
     addParaStyle(doc, 'IconoEscudo', '10pt', mb='0cm', mt='0cm', align='start')
 
-    # Expediente box
-    addParaStyle(doc, 'ExpLabel',    '6pt', bold=True, mb='0cm', mt='0cm',
-                 font=FONT_SANS, color='#ffffff', lh='110%',
-                 bg=AZUL_INS, padding_top='0.12cm', padding_bottom='0.12cm',
-                 padding_left='0.3cm', padding_right='0.3cm')
-    addParaStyle(doc, 'ExpNumero',   '15pt', bold=True, mb='0cm', mt='0.1cm',
-                 font=FONT_SANS, color=AZUL_INS, lh='100%')
+    # Expediente box (etiqueta discreta con filete inferior, sin relleno de color)
+    addParaStyle(doc, 'ExpLabel',    '6.5pt', bold=True, mb='0cm', mt='0cm',
+                 font=FONT_SANS, color=AZUL_OSCURO, lh='110%',
+                 border_bottom=f'0.5pt solid {AZUL_OSCURO}',
+                 padding_bottom='0.1cm')
+    addParaStyle(doc, 'ExpNumero',   '14pt', bold=True, mb='0cm', mt='0.15cm',
+                 font=FONT_SERIF, color=AZUL_OSCURO, lh='100%')
     addParaStyle(doc, 'ExpTipo',     '7pt', mb='0.1cm', mt='0cm',
-                 font=FONT_SANS, color='#6b7280', lh='110%')
+                 font=FONT_SANS, color=GRIS_META, lh='110%')
 
     # Título principal
     addParaStyle(doc, 'DocSupratit', '7pt', mb='0.1cm', mt='0.8cm',
                  font=FONT_SANS, color=GRIS_META, align='center',
                  lh='110%')
-    addParaStyle(doc, 'DocTitle',    '20pt', weight='900', mb='0.3cm', mt='0.2cm',
-                 font=FONT_SANS, color=AZUL_INS, align='center',
-                 lh='110%')
-    addParaStyle(doc, 'TitleRule',   '3pt', mb='0.5cm', mt='0cm',
-                 align='center', color=AZUL_INS)
+    addParaStyle(doc, 'DocTitle',    '17pt', weight='700', mb='0.25cm', mt='0.2cm',
+                 font=FONT_SERIF, color=AZUL_OSCURO, align='center',
+                 lh='125%')
+    # Filete fino bajo el título (ver addHeaderRule/addTituloPrincipal): se
+    # implementa como borde de párrafo, no como texto decorativo.
+    addParaStyle(doc, 'TitleRule',   '1pt', mb='0.6cm', mt='0cm',
+                 align='center', color=AZUL_OSCURO,
+                 border_bottom=f'0.9pt solid {AZUL_OSCURO}')
 
-    # H2 sección (uppercase, borde inferior azul)
+    # H2 sección (uppercase, filete inferior en azul institucional oscuro)
     addParaStyle(doc, 'SeccionH2',   '10pt', bold=True, mb='0.3cm', mt='0.7cm',
-                 font=FONT_SANS, color=AZUL_INS, lh='110%',
-                 border_bottom=f'0.75pt solid {AZUL_INS}')
+                 font=FONT_SERIF, color=AZUL_OSCURO, lh='110%',
+                 border_bottom=f'0.75pt solid {AZUL_OSCURO}')
 
     # Tabla datos — etiqueta
     addParaStyle(doc, 'TabLabel',    '7pt', bold=True, mb='0cm',
                  font=FONT_SANS, color=GRIS_LABEL, lh='130%')
     # Tabla datos — valor
     addParaStyle(doc, 'TabValor',    '9.5pt', mb='0cm', lh='150%',
-                 color=GRIS_TEXTO)
+                 color=GRIS_TEXTO, font=FONT_SERIF)
     addParaStyle(doc, 'TabValorBold','9.5pt', bold=True, mb='0cm', lh='150%',
-                 color=GRIS_TEXTO)
-    # Tabla datos — primera fila (color oficial, texto blanco)
+                 color=GRIS_TEXTO, font=FONT_SERIF)
+    # Tabla datos — primera fila (distinguida por negrita + filete, sin
+    # relleno de color: ver TC_LabelHead/TC_ValorHead)
     addParaStyle(doc, 'TabLabelHead', '7pt', bold=True, mb='0cm',
-                 font=FONT_SANS, color='#ffffff', lh='130%',
-                 bg=AZUL_INS, padding_top='0.22cm', padding_bottom='0.22cm',
-                 padding_left='0.25cm', padding_right='0.1cm')
+                 font=FONT_SANS, color=AZUL_OSCURO, lh='130%')
     addParaStyle(doc, 'TabValorHead', '9.5pt', bold=True, mb='0cm', lh='150%',
-                 color='#ffffff',
-                 bg=AZUL_INS, padding_top='0.22cm', padding_bottom='0.22cm',
-                 padding_left='0.1cm', padding_right='0.25cm')
+                 color=AZUL_OSCURO, font=FONT_SERIF)
     # Tabla económica
     addParaStyle(doc, 'EcoLabel',    '9.5pt', mb='0cm', lh='140%',
-                 color='#3a4150')
+                 color=GRIS_TEXTO, font=FONT_SERIF)
     addParaStyle(doc, 'EcoValor',    '9.5pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SANS, color=GRIS_TEXTO, align='end')
+                 font=FONT_SERIF, color=GRIS_TEXTO, align='end')
     addParaStyle(doc, 'EcoTotalLab', '9.5pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SANS, color=AZUL_INS,
+                 font=FONT_SERIF, color=AZUL_OSCURO,
                  bg=GRIS_BG, padding_top='0.25cm', padding_bottom='0.25cm',
                  padding_left='0.35cm', padding_right='0.1cm')
     addParaStyle(doc, 'EcoTotalVal', '11pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SANS, color=AZUL_INS, align='end',
+                 font=FONT_SERIF, color=AZUL_OSCURO, align='end',
                  bg=GRIS_BG, padding_top='0.25cm', padding_bottom='0.25cm',
                  padding_left='0.1cm', padding_right='0.35cm')
-    # Tabla económica — primera fila (color oficial, texto blanco)
+    # Tabla económica — primera fila (negrita + filete, sin relleno de color)
     addParaStyle(doc, 'EcoLabelHead', '9.5pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SANS, color='#ffffff',
-                 bg=AZUL_INS, padding_top='0.2cm', padding_bottom='0.2cm',
-                 padding_left='0.35cm', padding_right='0.1cm')
+                 font=FONT_SERIF, color=AZUL_OSCURO)
     addParaStyle(doc, 'EcoValorHead', '9.5pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SANS, color='#ffffff', align='end',
-                 bg=AZUL_INS, padding_top='0.2cm', padding_bottom='0.2cm',
-                 padding_left='0.1cm', padding_right='0.35cm')
+                 font=FONT_SERIF, color=AZUL_OSCURO, align='end')
 
     # Callout aviso
     # AvisoText: el borde izquierdo se gestiona via estilo de celda TC_AvisoLeft
 
     # Firma / pie
-    addParaStyle(doc, 'FirmaTit',    '6pt', bold=True, mb='0cm', mt='0.2cm',
-                 font=FONT_SANS, color=AZUL_INS, align='center', lh='110%')
-    addParaStyle(doc, 'FirmaSubt',   '7.5pt', mb='0cm', mt='0.1cm',
-                 color=GRIS_META, align='center', lh='110%')
+    addParaStyle(doc, 'FirmaTit',    '7pt', bold=True, mb='0cm', mt='0.2cm',
+                 font=FONT_SANS, color=AZUL_OSCURO, align='center', lh='110%')
+    addParaStyle(doc, 'FirmaSubt',   '8pt', mb='0cm', mt='0.1cm',
+                 font=FONT_SERIF, color=GRIS_META, align='center', lh='110%')
     addParaStyle(doc, 'CSVLabel',    '5.5pt', bold=False, mb='0.05cm',
                  font=FONT_SANS, color=GRIS_META, lh='110%')
     addParaStyle(doc, 'CSVCode',     '7.5pt', mb='0cm',
-                 font=FONT_MONO, color='#3a4150', lh='110%')
+                 font=FONT_MONO, color=GRIS_TEXTO, lh='110%')
 
     # Listas
-    addParaStyle(doc, 'ListaBul',    '10pt', mb='0.1cm', lh='170%',
-                 color=GRIS_TEXTO, text_indent='1.2cm')
-    addParaStyle(doc, 'ListaNum',    '10pt', mb='0.1cm', lh='170%',
-                 color=GRIS_TEXTO, text_indent='1.2cm')
+    addParaStyle(doc, 'ListaBul',    '10pt', mb='0.1cm', lh='160%',
+                 color=GRIS_TEXTO, text_indent='1.2cm', font=FONT_SERIF)
+    addParaStyle(doc, 'ListaNum',    '10pt', mb='0.1cm', lh='160%',
+                 color=GRIS_TEXTO, text_indent='1.2cm', font=FONT_SERIF)
 
-    # Tabla markdown genérica
+    # Tabla markdown genérica — cabecera en versalitas sans, sin relleno de
+    # color (el filete inferior lo aporta la celda TC_MdHead)
     addParaStyle(doc, 'MdTableHeadTxt', '8.5pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SANS, color='#ffffff',
-                 bg=AZUL_INS, padding_top='0.18cm', padding_bottom='0.18cm',
+                 font=FONT_SANS, color=AZUL_OSCURO,
+                 padding_top='0.18cm', padding_bottom='0.18cm',
                  padding_left='0.25cm', padding_right='0.25cm')
     addParaStyle(doc, 'MdTableCellTxt', '9pt', mb='0cm', lh='150%',
-                 color=GRIS_TEXTO)
+                 color=GRIS_TEXTO, font=FONT_SERIF)
 
     # ── estilos de texto inline ──
     addTextStyle(doc, 'Bold',         bold=True)
@@ -346,7 +351,7 @@ def applyAllStyles(doc):
     addTextStyle(doc, 'TextNaranja',  bold=True,
                  color=AZUL_OSCURO, font=FONT_SANS)
     addTextStyle(doc, 'AvisoBold',    bold=True, color=AZUL_OSCURO,
-                 font=FONT_SANS)
+                 font=FONT_SERIF)
 
     # ── estilos tabla ──
 
@@ -365,15 +370,16 @@ def applyAllStyles(doc):
     addTableCellStyle(doc, 'TC_ValorLast',
                       padding_bottom='0.22cm', padding_top='0.22cm',
                       padding_left='0cm', padding_right='0cm')
-    # Tabla datos — primera fila (color oficial). El fondo va en el estilo
-    # de párrafo (TabLabelHead/TabValorHead): el de la celda no se exporta a
-    # PDF de forma fiable en esta versión de LibreOffice. La celda se deja
-    # sin relleno propio para que el del párrafo llegue hasta el borde.
+    # Tabla datos — primera fila: sin relleno de color, se distingue con
+    # negrita (ver TabLabelHead/TabValorHead) y un filete inferior más
+    # marcado que separa la cabecera del resto de filas.
     addTableCellStyle(doc, 'TC_LabelHead',
-                      padding_bottom='0cm', padding_top='0cm',
-                      padding_left='0cm', padding_right='0cm')
+                      border_bottom=f'1pt solid {AZUL_OSCURO}',
+                      padding_bottom='0.22cm', padding_top='0.22cm',
+                      padding_left='0cm', padding_right='0.3cm')
     addTableCellStyle(doc, 'TC_ValorHead',
-                      padding_bottom='0cm', padding_top='0cm',
+                      border_bottom=f'1pt solid {AZUL_OSCURO}',
+                      padding_bottom='0.22cm', padding_top='0.22cm',
                       padding_left='0cm', padding_right='0cm')
 
     # Tabla económica (con borde exterior)
@@ -388,14 +394,16 @@ def applyAllStyles(doc):
                       border_top='none', border_left='none', border_right='none',
                       padding_left='0.35cm', padding_right='0.35cm',
                       padding_top='0.2cm', padding_bottom='0.2cm')
-    # Tabla económica — primera fila (color oficial; fondo en el párrafo,
-    # ver nota en TC_LabelHead más arriba)
+    # Tabla económica — primera fila: sin relleno de color, negrita +
+    # filete inferior marcado (mismo criterio que TC_LabelHead)
     addTableCellStyle(doc, 'TC_EcoLabelHead',
-                      padding_left='0cm', padding_right='0cm',
-                      padding_top='0cm', padding_bottom='0cm')
+                      border_bottom=f'1pt solid {AZUL_OSCURO}',
+                      padding_left='0.35cm', padding_right='0.35cm',
+                      padding_top='0.2cm', padding_bottom='0.2cm')
     addTableCellStyle(doc, 'TC_EcoValorHead',
-                      padding_left='0cm', padding_right='0cm',
-                      padding_top='0cm', padding_bottom='0cm')
+                      border_bottom=f'1pt solid {AZUL_OSCURO}',
+                      padding_left='0.35cm', padding_right='0.35cm',
+                      padding_top='0.2cm', padding_bottom='0.2cm')
     # El fondo va en el párrafo (EcoTotalLab/EcoTotalVal), ver nota en TC_LabelHead
     addTableCellStyle(doc, 'TC_EcoTotalLabel',
                       padding_left='0cm', padding_right='0cm',
@@ -408,7 +416,7 @@ def applyAllStyles(doc):
     addTableCellStyle(doc, 'TC_Hdr',
                       padding_left='0cm', padding_right='0cm',
                       padding_top='0cm', padding_bottom='0.25cm',
-                      border_bottom=f'2pt solid {AZUL_INS}')
+                      border_bottom=f'1.2pt solid {AZUL_OSCURO}')
     addTableCellStyle(doc, 'TC_ExpBox',
                       border_top=f'0.4pt solid {GRIS_CLARO}',
                       border_bottom=f'0.4pt solid {GRIS_CLARO}',
@@ -423,10 +431,11 @@ def applyAllStyles(doc):
                       padding_left='0cm', padding_right='0cm',
                       padding_top='0cm', padding_bottom='0cm')
 
-    # Callout aviso (azul corporativo, sin colores ajenos a la marca)
+    # Callout aviso: fondo neutro y filete oscuro (nunca tinte de color),
+    # tratado como una nota formal, no como un aviso publicitario
     addTableCellStyle(doc, 'TC_AvisoLeft',
                       bg=AZUL_TINT,
-                      border_left=f'3pt solid {AZUL_INS}',
+                      border_left=f'2pt solid {AZUL_OSCURO}',
                       border_top=f'0.4pt solid {AZUL_TINT_B}',
                       border_bottom=f'0.4pt solid {AZUL_TINT_B}',
                       border_right=f'0.4pt solid {AZUL_TINT_B}',
@@ -450,11 +459,10 @@ def applyAllStyles(doc):
                       padding_left='0cm', padding_right='0cm',
                       padding_top='0cm', padding_bottom='0cm')
 
-    # Tabla markdown genérica (grid completo)
+    # Tabla markdown genérica (grid completo, cabecera sin relleno de color)
     borde_md = f'0.4pt solid {GRIS_CLARO}'
-    # El fondo va en el párrafo (MdTableHeadTxt), ver nota en TC_LabelHead
     addTableCellStyle(doc, 'TC_MdHead',
-                      border_top=borde_md, border_bottom=borde_md,
+                      border_top=borde_md, border_bottom=f'1pt solid {AZUL_OSCURO}',
                       border_left=borde_md, border_right=borde_md,
                       padding_left='0cm', padding_right='0cm',
                       padding_top='0cm', padding_bottom='0cm')
@@ -897,9 +905,10 @@ def addCabeceraInstitucional(doc, expediente, tipo_contrato,
 
 
 def addHeaderRule(doc, parent=None):
-    """Línea azul separadora bajo la cabecera institucional. No hay forma
-    directa en ODT de hacer un <hr> estilizado; se simula con un párrafo
-    vacío con borde inferior."""
+    """Filete separador bajo la cabecera institucional, en azul oscuro
+    institucional (no en el azul vivo de acento). No hay forma directa en
+    ODT de hacer un <hr> estilizado; se simula con un párrafo vacío con
+    borde inferior."""
     if parent is None:
         parent = doc.text
     exists = False
@@ -913,7 +922,7 @@ def addHeaderRule(doc, parent=None):
     if not exists:
         rule_style = Style(name='HdrRule', family="paragraph")
         rule_pp = ParagraphProperties()
-        fo(rule_pp, 'border-bottom', f'1.5pt solid {AZUL_INS}')
+        fo(rule_pp, 'border-bottom', f'1.2pt solid {AZUL_OSCURO}')
         fo(rule_pp, 'margin-bottom', '0.35cm')
         fo(rule_pp, 'margin-top', '0cm')
         fo(rule_pp, 'padding-bottom', '0.05cm')
@@ -969,8 +978,8 @@ def addTituloPrincipal(doc, title, subtitulo=None):
     if subtitulo:
         doc.text.addElement(mkP('DocSupratit', subtitulo.upper()))
     doc.text.addElement(mkP('DocTitle', title.upper()))
-    # línea decorativa azul
-    doc.text.addElement(mkP('TitleRule', '━━━━━━━━'))
+    # filete fino bajo el título (borde de párrafo, no texto decorativo)
+    doc.text.addElement(P(stylename='TitleRule'))
 
 
 # ─── SECCIÓN: H2 DE SECCIÓN ───────────────────────────────────────────────────
@@ -1035,9 +1044,9 @@ def addTablaEconomica(doc, filas):
 # ─── SECCIÓN: CALLOUT DE AVISO ────────────────────────────────────────────────
 
 def _ensureAvisoStyle(doc):
-    """Crea (si no existe) el estilo automático de párrafo del aviso: borde
-    izquierdo y fondo en tinte de azul corporativo (sin colores ajenos a la
-    marca, sec. 6.2 del manual de identidad). Devuelve el nombre del estilo."""
+    """Crea (si no existe) el estilo automático de párrafo del aviso: fondo
+    neutro y filete izquierdo en azul oscuro institucional — una nota
+    formal, no un destacado de color vivo. Devuelve el nombre del estilo."""
     aviso_style_name = 'AvisoParagraph'
     exists = any(getattr(s, 'getAttribute', lambda x: None)('name') == aviso_style_name
                  for s in doc.automaticstyles.childNodes)
@@ -1045,7 +1054,7 @@ def _ensureAvisoStyle(doc):
         s = Style(name=aviso_style_name, family='paragraph')
         pp = ParagraphProperties()
         fo(pp, 'background-color', AZUL_TINT)
-        fo(pp, 'border-left',   f'3pt solid {AZUL_INS}')
+        fo(pp, 'border-left',   f'2pt solid {AZUL_OSCURO}')
         fo(pp, 'border-top',    f'0.4pt solid {AZUL_TINT_B}')
         fo(pp, 'border-bottom', f'0.4pt solid {AZUL_TINT_B}')
         fo(pp, 'border-right',  f'0.4pt solid {AZUL_TINT_B}')
@@ -1058,9 +1067,9 @@ def _ensureAvisoStyle(doc):
         fo(pp, 'line-height',    '160%')
         s.addElement(pp)
         tp = TextProperties()
-        fo(tp, 'font-size', '9pt')
-        fo(tp, 'color', AZUL_OSCURO)
-        fo(tp, 'font-family', FONT_SANS)
+        fo(tp, 'font-size', '9.5pt')
+        fo(tp, 'color', GRIS_TEXTO)
+        fo(tp, 'font-family', FONT_SERIF)
         s.addElement(tp)
         doc.automaticstyles.addElement(s)
     return aviso_style_name
