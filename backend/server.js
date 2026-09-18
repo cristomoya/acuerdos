@@ -833,9 +833,9 @@ function _buildOdtFilename(modeloNombre, camposObj) {
 }
 
 async function _generateOdtBuffer(modelo, camposObj) {
-  // El generador ODT no usa ninguna plantilla .odt/.ott: siempre produce el
-  // documento con el formato institucional fijo (cabecera, expediente,
-  // tablas y firma), igual para todos los modelos.
+  // El generador ODT no usa ninguna plantilla .odt/.ott: aplica el look
+  // institucional directamente sobre la estructura Markdown del cuerpo del
+  // modelo (ver renderDocumentBody en export_odt.py).
   const tipoMap = _buildTipoMap(modelo.id);
   let cuerpo = modelo.cuerpo || '';
   if (camposObj && typeof camposObj === 'object') {
@@ -853,20 +853,7 @@ async function _generateOdtBuffer(modelo, camposObj) {
   const inputJson = path.join(tmpDir, `${tmpId}_in.json`);
   const outputOdt = path.join(tmpDir, `${tmpId}_out.odt`);
 
-  const expediente = (camposObj && (camposObj['NUMERO_EXPEDIENTE'] || camposObj['EXPEDIENTE'])) || '';
-
-  const payload = {
-    title: modelo.nombre,
-    markdown: cuerpo,
-    categoria: modelo.categoria_nombre || '',
-    expediente: expediente ? String(expediente).trim() : '',
-    tipo_contrato: modelo.categoria_nombre || '',
-    meta: {
-      title: modelo.nombre,
-      creator: 'Gestión de Modelos',
-      subject: modelo.categoria_nombre || ''
-    }
-  };
+  const payload = { markdown: cuerpo };
   fs.writeFileSync(inputJson, JSON.stringify(payload));
 
   const args = [path.join(__dirname, 'scripts/export_odt.py'), inputJson, outputOdt];
