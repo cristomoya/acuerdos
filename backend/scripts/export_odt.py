@@ -1,33 +1,66 @@
 #!/usr/bin/env python3
 """
 export_odt.py — Genera documentos ODT de contratación municipal con el formato
-institucional fijo. El documento se construye siempre desde cero: no se admite
-ni se usa ninguna plantilla .odt/.ott externa.
-
-El cuerpo del modelo llega como Markdown y ya trae su propia cabecera, título
-y secciones escritos por el usuario (ver renderDocumentBody): el exportador
-solo aplica el look institucional sobre esa estructura, no añade cabecera,
-título ni firma por su cuenta.
+institucional fijo (cabecera con membrete, caja de expediente, tablas de datos/
+económica, aviso y firma). El documento se construye siempre desde cero: no se
+admite ni se usa ninguna plantilla .odt/.ott externa.
 
 Usage:
   python3 export_odt.py <input.json> <output.odt>
 
 Campos input.json:
-  markdown : cuerpo del documento en Markdown
+  title         : título del documento (ej. "INVITACIÓN A PRESENTAR OFERTA")
+  subtitulo     : línea bajo el título (ej. "Contrato Menor — Art. 118 LCSP")
+  expediente    : número de expediente (ej. "5017/2026")
+  tipo_contrato : tipo mostrado bajo el expediente (ej. "Contrato Menor de Obras")
+  secciones     : lista de secciones del documento (ver estructura abajo)
+  markdown      : (opcional) cuerpo en markdown adicional al final
+
+Estructura de secciones:
+  [
+    {
+      "tipo": "datos",           # tabla de clave-valor sin bordes laterales
+      "titulo": "Datos del expediente",
+      "filas": [["Tipo de contrato", "Obras"], ...]
+    },
+    {
+      "tipo": "economica",       # tabla con IVA y total destacado
+      "titulo": null,
+      "filas": [
+        ["Presupuesto base (sin IVA)", "13.035,00 €"],
+        ["IVA (21 %)", "3.465,00 €"],
+        ["total", "16.500,00 €"]   # la fila con "total" recibe fondo azul
+      ]
+    },
+    {
+      "tipo": "aviso",           # callout azul corporativo con borde izquierdo
+      "texto": "IMPORTANTE. No se admitirán ofertas por Sede Electrónica..."
+    },
+    {
+      "tipo": "texto",           # párrafo(s) de cuerpo
+      "markdown": "..."
+    },
+    {
+      "tipo": "firma",           # pie con CSV + firma electrónica
+      "lugar": "Totana",
+      "cargo": "El/La Responsable del Negociado de Contratación"
+    }
+  ]
 """
 
 import sys, os, json, re, unicodedata
+from copy import deepcopy
 
 import mistune
 from odf.opendocument import OpenDocumentText
 from odf.style import (Style, TextProperties, ParagraphProperties, PageLayout,
                         MasterPage, TableCellProperties, TableProperties,
-                        TableColumnProperties, Header)
+                        TableRowProperties, TableColumnProperties, Header)
 from odf.element import Element
-from odf.text import P, Span, LineBreak, Placeholder
+from odf.text import P, Span, H, LineBreak
 from odf.table import Table, TableRow, TableCell, TableColumn
 from odf.draw import Frame, Image as DrawImage
-from odf.namespaces import STYLENS, FONS, TABLENS
+from odf.namespaces import STYLENS, FONS, TEXTNS, OFFICENS, TABLENS
 
 # Escudo institucional (icono recortado del logo oficial, sin el texto
 # "Ayuntamiento de Totana" que ya se compone como texto enriquecido).
@@ -40,26 +73,25 @@ ESCUDO_W_PX, ESCUDO_H_PX = 280, 254
 # Combinaciones permitidas: blanco o negro sobre azul; azul o negro sobre
 # blanco (sec. 6.2). No se usan colores no corporativos (naranja, dorado...)
 # en ningún acento ni callout.
-#
-# Diseño "documento serio": los filetes, cabeceras, títulos y totales usan el
-# azul oscuro/casi negro institucional (nunca el azul vivo como relleno de
-# bloque tipo tarjeta web), y las tablas se resuelven con reglas y negrita en
-# vez de fondos de color.
-AZUL_OSCURO = "#0f2a40"   # azul institucional oscuro (títulos, cabeceras, firma)
-AZUL_TINT   = "#f4f5f6"   # fondo neutro muy claro (notas/citas, sin tinte de color)
-AZUL_TINT_B = "#c9ccd1"   # borde neutro para notas/citas
+AZUL_INS    = "#0f2a40"   # azul corporativo (color principal)
+AZUL_OSCURO = "#0f2a40"   # azul secundario (acentos oscuros, p.ej. firma)
+AZUL_TINT   = "#eaf4fb"   # tinte muy claro del azul (fondos de aviso/notas)
+AZUL_TINT_B = "#bfe0f3"   # tinte medio del azul (bordes de aviso/notas)
 GRIS_LABEL = "#5b6470"   # etiquetas tabla
-GRIS_TEXTO = "#1c1f26"   # texto cuerpo (negro, sec. 7.1 "Texto párrafo: Negro")
-GRIS_CLARO = "#c7cad0"   # líneas separadoras
+GRIS_TEXTO = "#262d3a"   # texto cuerpo (negro, sec. 7.1 "Texto párrafo: Negro")
+GRIS_CLARO = "#e2e4e8"   # líneas separadoras
 GRIS_BG    = "#f3f5f8"   # fondo fila total / fondo CSV
-GRIS_META  = "#5b6470"   # texto secundario
+GRIS_META  = "#9aa0a8"   # texto secundario
 
-# Tipografía: cuerpo en serif clásica (registro formal/administrativo);
-# HK Grotesk (tipografía corporativa, sec. 5.1) se reserva para etiquetas,
-# eyebrows y textos auxiliares en mayúsculas, no para el texto de lectura.
-FONT_SERIF = "'Liberation Serif', 'Times New Roman', Georgia, serif"
+# Tipografía corporativa (sec. 5.1): HK Grotesk, con Inter como alternativa
+# (sec. 2.1.3, usada en el escudo) y fallback a fuentes del sistema.
 FONT_SANS = "'HK Grotesk', Inter, Arial, sans-serif"
 FONT_MONO = "'Liberation Mono', Consolas, monospace"
+
+# Tipografía de sistema (usada en todos los estilos salvo los títulos de
+# documento/sección, que mantienen FONT_SANS para conservar el acento
+# corporativo).
+FONT_SYS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
 
 
 # ─── HELPERS DE TEXTO (para heurísticas de detección) ────────────────────────
@@ -188,99 +220,140 @@ def addTableCellStyle(doc, name, bg=None, border_bottom=None,
 def applyAllStyles(doc):
     """Define todos los estilos de contenido."""
     # ── párrafos ──
-    addParaStyle(doc, 'BodyText',    '10pt', mb='0.25cm', lh='135%',
-                 color=GRIS_TEXTO, text_indent='1.2cm', align='justify',
-                 font=FONT_SERIF)
-    # Cita (blockquote `>`): fondo neutro (no tintado de color), cursiva,
-    # márgenes laterales más estrechos que el cuerpo (queda como un bloque
-    # indentado dentro de la página) y sangría de primera línea.
-    addParaStyle(doc, 'CitaInst',    '9.5pt', italic=True, mb='0.3cm', mt='0.3cm',
-                 lh='150%', color=GRIS_TEXTO, bg=AZUL_TINT, font=FONT_SERIF,
+    addParaStyle(doc, 'BodyText',    '10pt', mb='0.25cm', lh='100%',
+                 color=GRIS_TEXTO, text_indent='1.2cm', font=FONT_SYS)
+    addParaStyle(doc, 'BodySmall',   '10pt', mb='0.2cm', lh='160%',
+                 color='#5b6470', font=FONT_SYS)
+    addParaStyle(doc, 'BodyNote',    '10pt', mb='0.15cm', lh='160%',
+                 color='#5b6470', font=FONT_SYS)
+    # Cita (blockquote `>`): sombreado en gris suave, cursiva, márgenes
+    # laterales más estrechos que el cuerpo (queda como un bloque indentado
+    # dentro de la página) y sangría de primera línea.
+    addParaStyle(doc, 'CitaInst',    '10pt', italic=True, mb='0.3cm', mt='0.3cm',
+                 lh='150%', color=GRIS_TEXTO, bg=GRIS_BG,
                  margin_left='1.2cm', margin_right='1.2cm',
                  text_indent='0.6cm',
                  padding_top='0.25cm', padding_bottom='0.25cm',
-                 padding_left='0.4cm', padding_right='0.4cm')
+                 padding_left='0.4cm', padding_right='0.4cm', font=FONT_SYS)
 
     # Cabecera institución
-    addParaStyle(doc, 'InstNombre',  '14pt', bold=True, mb='0.1cm', mt='0cm',
-                 font=FONT_SERIF, color=AZUL_OSCURO, lh='110%')
-    addParaStyle(doc, 'InstSubdep',  '7pt', mb='0.1cm', mt='0.1cm',
-                 font=FONT_SANS, color=GRIS_LABEL, lh='110%')
+    addParaStyle(doc, 'InstNombre',  '10pt', bold=True, mb='0.1cm', mt='0cm',
+                 font=FONT_SYS, color=AZUL_INS, lh='110%')
+    addParaStyle(doc, 'InstSubdep',  '10pt', mb='0.1cm', mt='0.1cm',
+                 font=FONT_SYS, color=GRIS_LABEL, lh='110%')
+    addParaStyle(doc, 'InstDirec',   '10pt', mb='0cm', font=FONT_SYS,
+                 color=GRIS_META, lh='110%')
 
     # Icono escudo (sin el text-indent de BodyText: con él, el icono se
     # desplaza 1.2cm dentro de su celda y se sale de la columna estrecha
     # del escudo, solapando con el nombre de la institución de al lado)
-    addParaStyle(doc, 'IconoEscudo', '10pt', mb='0cm', mt='0cm', align='start')
+    addParaStyle(doc, 'IconoEscudo', '10pt', mb='0cm', mt='0cm', align='start',
+                 font=FONT_SYS)
+
+    # Expediente box
+    addParaStyle(doc, 'ExpLabel',    '10pt', bold=True, mb='0cm', mt='0cm',
+                 font=FONT_SYS, color='#ffffff', lh='110%',
+                 bg=AZUL_INS, padding_top='0.12cm', padding_bottom='0.12cm',
+                 padding_left='0.3cm', padding_right='0.3cm')
+    addParaStyle(doc, 'ExpNumero',   '10pt', bold=True, mb='0cm', mt='0.1cm',
+                 font=FONT_SYS, color=AZUL_INS, lh='100%')
+    addParaStyle(doc, 'ExpTipo',     '10pt', mb='0.1cm', mt='0cm',
+                 font=FONT_SYS, color='#6b7280', lh='110%')
 
     # Título principal
     addParaStyle(doc, 'DocSupratit', '7pt', mb='0.1cm', mt='0.8cm',
                  font=FONT_SANS, color=GRIS_META, align='center',
                  lh='110%')
-    addParaStyle(doc, 'DocTitle',    '17pt', weight='700', mb='0.25cm', mt='0.2cm',
-                 font=FONT_SERIF, color=AZUL_OSCURO, align='center',
-                 lh='125%')
-    # Filete fino bajo el título (ver addHeaderRule/addTituloPrincipal): se
-    # implementa como borde de párrafo, no como texto decorativo.
-    addParaStyle(doc, 'TitleRule',   '1pt', mb='0.6cm', mt='0cm',
-                 align='center', color=AZUL_OSCURO,
-                 border_bottom=f'0.9pt solid {AZUL_OSCURO}')
+    addParaStyle(doc, 'DocTitle',    '20pt', weight='900', mb='0.3cm', mt='0.2cm',
+                 font=FONT_SANS, color=AZUL_INS, align='center',
+                 lh='110%')
+    addParaStyle(doc, 'TitleRule',   '3pt', mb='0.5cm', mt='0cm',
+                 align='center', color=AZUL_INS)
 
-    # H2 sección (uppercase, filete inferior en azul institucional oscuro)
+    # H2 sección (mayúsculas, centrado, negrita, borde inferior azul)
     addParaStyle(doc, 'SeccionH2',   '10pt', bold=True, mb='0.3cm', mt='0.7cm',
-                 font=FONT_SERIF, color=AZUL_OSCURO, lh='110%',
-                 border_bottom=f'0.75pt solid {AZUL_OSCURO}')
+                 font=FONT_SANS, color=AZUL_INS, lh='110%', align='center',
+                 border_bottom=f'0.75pt solid {AZUL_INS}')
 
     # Tabla datos — etiqueta
-    addParaStyle(doc, 'TabLabel',    '7pt', bold=True, mb='0cm',
-                 font=FONT_SANS, color=GRIS_LABEL, lh='130%')
+    addParaStyle(doc, 'TabLabel',    '10pt', bold=True, mb='0cm',
+                 font=FONT_SYS, color=GRIS_LABEL, lh='130%')
     # Tabla datos — valor
-    addParaStyle(doc, 'TabValor',    '9.5pt', mb='0cm', lh='150%',
-                 color=GRIS_TEXTO, font=FONT_SERIF)
-    # Tabla datos — primera fila (distinguida por negrita + filete, sin
-    # relleno de color: ver TC_LabelHead/TC_ValorHead)
-    addParaStyle(doc, 'TabLabelHead', '7pt', bold=True, mb='0cm',
-                 font=FONT_SANS, color=AZUL_OSCURO, lh='130%')
-    addParaStyle(doc, 'TabValorHead', '9.5pt', bold=True, mb='0cm', lh='150%',
-                 color=AZUL_OSCURO, font=FONT_SERIF)
+    addParaStyle(doc, 'TabValor',    '10pt', mb='0cm', lh='150%',
+                 color=GRIS_TEXTO, font=FONT_SYS)
+    addParaStyle(doc, 'TabValorBold','10pt', bold=True, mb='0cm', lh='150%',
+                 color=GRIS_TEXTO, font=FONT_SYS)
+    # Tabla datos — primera fila (color oficial, texto blanco)
+    addParaStyle(doc, 'TabLabelHead', '10pt', bold=True, mb='0cm',
+                 font=FONT_SYS, color='#ffffff', lh='130%',
+                 bg=AZUL_INS, padding_top='0.22cm', padding_bottom='0.22cm',
+                 padding_left='0.25cm', padding_right='0.1cm')
+    addParaStyle(doc, 'TabValorHead', '10pt', bold=True, mb='0cm', lh='150%',
+                 color='#ffffff', font=FONT_SYS,
+                 bg=AZUL_INS, padding_top='0.22cm', padding_bottom='0.22cm',
+                 padding_left='0.1cm', padding_right='0.25cm')
     # Tabla económica
-    addParaStyle(doc, 'EcoLabel',    '9.5pt', mb='0cm', lh='140%',
-                 color=GRIS_TEXTO, font=FONT_SERIF)
-    addParaStyle(doc, 'EcoValor',    '9.5pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SERIF, color=GRIS_TEXTO, align='end')
-    addParaStyle(doc, 'EcoTotalLab', '9.5pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SERIF, color=AZUL_OSCURO,
+    addParaStyle(doc, 'EcoLabel',    '10pt', mb='0cm', lh='140%',
+                 color='#3a4150', font=FONT_SYS)
+    addParaStyle(doc, 'EcoValor',    '10pt', bold=True, mb='0cm', lh='140%',
+                 font=FONT_SYS, color=GRIS_TEXTO, align='end')
+    addParaStyle(doc, 'EcoTotalLab', '10pt', bold=True, mb='0cm', lh='140%',
+                 font=FONT_SYS, color=AZUL_INS,
                  bg=GRIS_BG, padding_top='0.25cm', padding_bottom='0.25cm',
                  padding_left='0.35cm', padding_right='0.1cm')
-    addParaStyle(doc, 'EcoTotalVal', '11pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SERIF, color=AZUL_OSCURO, align='end',
+    addParaStyle(doc, 'EcoTotalVal', '10pt', bold=True, mb='0cm', lh='140%',
+                 font=FONT_SYS, color=AZUL_INS, align='end',
                  bg=GRIS_BG, padding_top='0.25cm', padding_bottom='0.25cm',
                  padding_left='0.1cm', padding_right='0.35cm')
-    # Tabla económica — primera fila (negrita + filete, sin relleno de color)
-    addParaStyle(doc, 'EcoLabelHead', '9.5pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SERIF, color=AZUL_OSCURO)
-    addParaStyle(doc, 'EcoValorHead', '9.5pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SERIF, color=AZUL_OSCURO, align='end')
+    # Tabla económica — primera fila (color oficial, texto blanco)
+    addParaStyle(doc, 'EcoLabelHead', '10pt', bold=True, mb='0cm', lh='140%',
+                 font=FONT_SYS, color='#ffffff',
+                 bg=AZUL_INS, padding_top='0.2cm', padding_bottom='0.2cm',
+                 padding_left='0.35cm', padding_right='0.1cm')
+    addParaStyle(doc, 'EcoValorHead', '10pt', bold=True, mb='0cm', lh='140%',
+                 font=FONT_SYS, color='#ffffff', align='end',
+                 bg=AZUL_INS, padding_top='0.2cm', padding_bottom='0.2cm',
+                 padding_left='0.1cm', padding_right='0.35cm')
+
+    # Callout aviso
+    # AvisoText: el borde izquierdo se gestiona via estilo de celda TC_AvisoLeft
+
+    # Firma / pie
+    addParaStyle(doc, 'FirmaTit',    '10pt', bold=True, mb='0cm', mt='0.2cm',
+                 font=FONT_SYS, color=AZUL_INS, align='center', lh='110%')
+    addParaStyle(doc, 'FirmaSubt',   '10pt', mb='0cm', mt='0.1cm',
+                 color=GRIS_META, align='center', lh='110%', font=FONT_SYS)
+    addParaStyle(doc, 'CSVLabel',    '10pt', bold=False, mb='0.05cm',
+                 font=FONT_SYS, color=GRIS_META, lh='110%')
+    addParaStyle(doc, 'CSVCode',     '10pt', mb='0cm',
+                 font=FONT_SYS, color='#3a4150', lh='110%')
 
     # Listas
-    addParaStyle(doc, 'ListaBul',    '10pt', mb='0.1cm', lh='160%',
-                 color=GRIS_TEXTO, text_indent='1.2cm', font=FONT_SERIF)
-    addParaStyle(doc, 'ListaNum',    '10pt', mb='0.1cm', lh='160%',
-                 color=GRIS_TEXTO, text_indent='1.2cm', font=FONT_SERIF)
+    addParaStyle(doc, 'ListaBul',    '10pt', mb='0.1cm', lh='170%',
+                 color=GRIS_TEXTO, text_indent='1.2cm', font=FONT_SYS)
+    addParaStyle(doc, 'ListaNum',    '10pt', mb='0.1cm', lh='170%',
+                 color=GRIS_TEXTO, text_indent='1.2cm', font=FONT_SYS)
 
-    # Tabla markdown genérica — cabecera en versalitas sans, sin relleno de
-    # color (el filete inferior lo aporta la celda TC_MdHead)
-    addParaStyle(doc, 'MdTableHeadTxt', '8.5pt', bold=True, mb='0cm', lh='140%',
-                 font=FONT_SANS, color=AZUL_OSCURO,
-                 padding_top='0.18cm', padding_bottom='0.18cm',
+    # Tabla markdown genérica
+    addParaStyle(doc, 'MdTableHeadTxt', '10pt', bold=True, mb='0cm', lh='140%',
+                 font=FONT_SYS, color='#ffffff',
+                 bg=AZUL_INS, padding_top='0.18cm', padding_bottom='0.18cm',
                  padding_left='0.25cm', padding_right='0.25cm')
-    addParaStyle(doc, 'MdTableCellTxt', '9pt', mb='0cm', lh='150%',
-                 color=GRIS_TEXTO, font=FONT_SERIF)
+    addParaStyle(doc, 'MdTableCellTxt', '10pt', mb='0cm', lh='150%',
+                 color=GRIS_TEXTO, font=FONT_SYS)
 
     # ── estilos de texto inline ──
     addTextStyle(doc, 'Bold',         bold=True)
     addTextStyle(doc, 'Italic',       italic=True)
+    addTextStyle(doc, 'BoldItalic',   bold=True, italic=True)
+    addTextStyle(doc, 'FieldMarker',  bg='#FFFF00')
     addTextStyle(doc, 'CodeInline',   font=FONT_MONO, size='8pt',
                  bg='#F4F4F0')
+    addTextStyle(doc, 'TextBold',     bold=True, color=GRIS_TEXTO)
+    addTextStyle(doc, 'TextNaranja',  bold=True,
+                 color=AZUL_OSCURO, font=FONT_SANS)
+    addTextStyle(doc, 'AvisoBold',    bold=True, color=AZUL_OSCURO,
+                 font=FONT_SANS)
 
     # ── estilos tabla ──
 
@@ -299,16 +372,15 @@ def applyAllStyles(doc):
     addTableCellStyle(doc, 'TC_ValorLast',
                       padding_bottom='0.22cm', padding_top='0.22cm',
                       padding_left='0cm', padding_right='0cm')
-    # Tabla datos — primera fila: sin relleno de color, se distingue con
-    # negrita (ver TabLabelHead/TabValorHead) y un filete inferior más
-    # marcado que separa la cabecera del resto de filas.
+    # Tabla datos — primera fila (color oficial). El fondo va en el estilo
+    # de párrafo (TabLabelHead/TabValorHead): el de la celda no se exporta a
+    # PDF de forma fiable en esta versión de LibreOffice. La celda se deja
+    # sin relleno propio para que el del párrafo llegue hasta el borde.
     addTableCellStyle(doc, 'TC_LabelHead',
-                      border_bottom=f'1pt solid {AZUL_OSCURO}',
-                      padding_bottom='0.22cm', padding_top='0.22cm',
-                      padding_left='0cm', padding_right='0.3cm')
+                      padding_bottom='0cm', padding_top='0cm',
+                      padding_left='0cm', padding_right='0cm')
     addTableCellStyle(doc, 'TC_ValorHead',
-                      border_bottom=f'1pt solid {AZUL_OSCURO}',
-                      padding_bottom='0.22cm', padding_top='0.22cm',
+                      padding_bottom='0cm', padding_top='0cm',
                       padding_left='0cm', padding_right='0cm')
 
     # Tabla económica (con borde exterior)
@@ -323,16 +395,14 @@ def applyAllStyles(doc):
                       border_top='none', border_left='none', border_right='none',
                       padding_left='0.35cm', padding_right='0.35cm',
                       padding_top='0.2cm', padding_bottom='0.2cm')
-    # Tabla económica — primera fila: sin relleno de color, negrita +
-    # filete inferior marcado (mismo criterio que TC_LabelHead)
+    # Tabla económica — primera fila (color oficial; fondo en el párrafo,
+    # ver nota en TC_LabelHead más arriba)
     addTableCellStyle(doc, 'TC_EcoLabelHead',
-                      border_bottom=f'1pt solid {AZUL_OSCURO}',
-                      padding_left='0.35cm', padding_right='0.35cm',
-                      padding_top='0.2cm', padding_bottom='0.2cm')
+                      padding_left='0cm', padding_right='0cm',
+                      padding_top='0cm', padding_bottom='0cm')
     addTableCellStyle(doc, 'TC_EcoValorHead',
-                      border_bottom=f'1pt solid {AZUL_OSCURO}',
-                      padding_left='0.35cm', padding_right='0.35cm',
-                      padding_top='0.2cm', padding_bottom='0.2cm')
+                      padding_left='0cm', padding_right='0cm',
+                      padding_top='0cm', padding_bottom='0cm')
     # El fondo va en el párrafo (EcoTotalLab/EcoTotalVal), ver nota en TC_LabelHead
     addTableCellStyle(doc, 'TC_EcoTotalLabel',
                       padding_left='0cm', padding_right='0cm',
@@ -341,14 +411,57 @@ def applyAllStyles(doc):
                       padding_left='0cm', padding_right='0cm',
                       padding_top='0cm', padding_bottom='0cm')
 
+    # Cabecera institucional
+    addTableCellStyle(doc, 'TC_Hdr',
+                      padding_left='0cm', padding_right='0cm',
+                      padding_top='0cm', padding_bottom='0.25cm',
+                      border_bottom=f'2pt solid {AZUL_INS}')
+    addTableCellStyle(doc, 'TC_ExpBox',
+                      border_top=f'0.4pt solid {GRIS_CLARO}',
+                      border_bottom=f'0.4pt solid {GRIS_CLARO}',
+                      border_left=f'0.4pt solid {GRIS_CLARO}',
+                      border_right=f'0.4pt solid {GRIS_CLARO}',
+                      padding_left='0.3cm', padding_right='0.3cm',
+                      padding_top='0cm', padding_bottom='0.2cm')
+    # El fondo va en el párrafo (ExpLabel), ver nota en TC_LabelHead
+    addTableCellStyle(doc, 'TC_ExpBoxLabel',
+                      border_top='none', border_bottom='none',
+                      border_left='none', border_right='none',
+                      padding_left='0cm', padding_right='0cm',
+                      padding_top='0cm', padding_bottom='0cm')
+
+    # Callout aviso (azul corporativo, sin colores ajenos a la marca)
+    addTableCellStyle(doc, 'TC_AvisoLeft',
+                      bg=AZUL_TINT,
+                      border_left=f'3pt solid {AZUL_INS}',
+                      border_top=f'0.4pt solid {AZUL_TINT_B}',
+                      border_bottom=f'0.4pt solid {AZUL_TINT_B}',
+                      border_right=f'0.4pt solid {AZUL_TINT_B}',
+                      padding_left='0.35cm', padding_right='0.35cm',
+                      padding_top='0.25cm', padding_bottom='0.25cm')
+
+    # Celda firma
+    addTableCellStyle(doc, 'TC_FirmaBox',
+                      border_bottom=f'0.4pt solid {GRIS_CLARO}',
+                      padding_left='0cm', padding_right='0cm',
+                      padding_top='0cm', padding_bottom='0.2cm')
+    addTableCellStyle(doc, 'TC_CSV',
+                      bg=GRIS_BG,
+                      border_top=f'0.4pt solid {GRIS_CLARO}',
+                      border_bottom=f'0.4pt solid {GRIS_CLARO}',
+                      border_left=f'0.4pt solid {GRIS_CLARO}',
+                      border_right=f'0.4pt solid {GRIS_CLARO}',
+                      padding_left='0.2cm', padding_right='0.2cm',
+                      padding_top='0.12cm', padding_bottom='0.12cm')
     addTableCellStyle(doc, 'TC_Bare',
                       padding_left='0cm', padding_right='0cm',
                       padding_top='0cm', padding_bottom='0cm')
 
-    # Tabla markdown genérica (grid completo, cabecera sin relleno de color)
+    # Tabla markdown genérica (grid completo)
     borde_md = f'0.4pt solid {GRIS_CLARO}'
+    # El fondo va en el párrafo (MdTableHeadTxt), ver nota en TC_LabelHead
     addTableCellStyle(doc, 'TC_MdHead',
-                      border_top=borde_md, border_bottom=f'1pt solid {AZUL_OSCURO}',
+                      border_top=borde_md, border_bottom=borde_md,
                       border_left=borde_md, border_right=borde_md,
                       padding_left='0cm', padding_right='0cm',
                       padding_top='0cm', padding_bottom='0cm')
@@ -362,6 +475,8 @@ def applyAllStyles(doc):
     _addTableStyle(doc, 'TBL_Datos')
     _addTableStyle(doc, 'TBL_Eco')
     _addTableStyle(doc, 'TBL_Hdr')
+    _addTableStyle(doc, 'TBL_Firma')
+    _addTableStyle(doc, 'TBL_Aviso')
     _addTableStyle(doc, 'TBL_Md')
 
 
@@ -421,44 +536,45 @@ def renderInline(parent, text):
     for m in FIELD_RE.finditer(text):
         if m.start() > last:
             parent.addText(text[last:m.start()])
-        ph = Placeholder(placeholdertype='text', description=m.group(1))
-        ph.addText(m.group(0))
-        parent.addElement(ph)
+        sp = Span(stylename='FieldMarker')
+        sp.addText(m.group(0))
+        parent.addElement(sp)
         last = m.end()
     if last < len(text):
         parent.addText(text[last:])
 
 
-def renderStyledText(parent, token):
+def renderStyledText(parent, token, upper=False):
     if isinstance(token, str):
-        renderInline(parent, token)
+        renderInline(parent, token.upper() if upper else token)
         return
     t = token.get('type', '')
     children = token.get('children', [])
     raw = token.get('raw', '')
     if t == 'text':
-        renderInline(parent, token.get('raw', ''))
+        text = token.get('raw', '')
+        renderInline(parent, text.upper() if upper else text)
     elif t == 'strong':
         sp = Span(stylename='Bold')
-        for c in children: renderStyledText(sp, c)
+        for c in children: renderStyledText(sp, c, upper=upper)
         parent.addElement(sp)
     elif t == 'emphasis':
         sp = Span(stylename='Italic')
-        for c in children: renderStyledText(sp, c)
+        for c in children: renderStyledText(sp, c, upper=upper)
         parent.addElement(sp)
     elif t == 'codespan':
         sp = Span(stylename='CodeInline')
-        sp.addText(raw)
+        sp.addText(raw.upper() if upper else raw)
         parent.addElement(sp)
-    elif t in ('linebreak', 'softlinebreak'):
+    elif t in ('linebreak', 'softbreak'):
         parent.addElement(LineBreak())
     elif t == 'link':
-        for c in children: renderStyledText(parent, c)
+        for c in children: renderStyledText(parent, c, upper=upper)
     else:
         if children:
-            for c in children: renderStyledText(parent, c)
+            for c in children: renderStyledText(parent, c, upper=upper)
         elif raw:
-            renderInline(parent, raw)
+            renderInline(parent, raw.upper() if upper else raw)
 
 
 # ─── BLOQUE MARKDOWN ──────────────────────────────────────────────────────────
@@ -470,14 +586,23 @@ def renderBlock(doc, token):
     raw = token.get('raw', '')
 
     if t == 'heading':
-        # renderDocumentBody() ya gestiona los encabezados de nivel 1-2
-        # (cabecera, título/subtítulo, SeccionH2) y solo delega aquí los de
-        # nivel 3+, que se muestran como texto normal en negrita.
-        p = P(stylename='BodyText')
-        sp = Span(stylename='Bold')
-        for c in children: renderStyledText(sp, c)
-        p.addElement(sp)
-        doc.text.addElement(p)
+        level = attrs.get('level', 1)
+        if level <= 2:
+            addSeccionH2(doc, '')
+            h = doc.text.lastChild
+            h.childNodes.clear() if hasattr(h, 'childNodes') else None
+            # regeneramos con el contenido real
+            doc.text.removeChild(h)
+            # usar un párrafo con estilo SeccionH2
+            p = P(stylename='SeccionH2')
+            for c in children: renderStyledText(p, c, upper=True)
+            doc.text.addElement(p)
+        else:
+            p = P(stylename='BodyText')
+            sp = Span(stylename='Bold')
+            for c in children: renderStyledText(sp, c)
+            p.addElement(sp)
+            doc.text.addElement(p)
 
     elif t == 'paragraph':
         p = P(stylename='BodyText')
@@ -500,7 +625,7 @@ def renderBlock(doc, token):
         for i, item in enumerate(children, 1):
             renderListItem(doc, item, ordered=ordered, num=i)
 
-    elif t in ('list_item', 'task_list_item'):
+    elif t == 'list_item':
         renderListItem(doc, token)
 
     elif t == 'table':
@@ -621,13 +746,8 @@ def renderKeyValueTable(doc, label_cells, value_cells):
 
 def renderListItem(doc, item, ordered=False, num=1):
     children = item.get('children', [])
-    is_task = item.get('type') == 'task_list_item'
-    checked = item.get('attrs', {}).get('checked', False) if is_task else False
     p = P(stylename='ListaBul' if not ordered else 'ListaNum')
-    if is_task:
-        prefix = '☑ ' if checked else '☐ '
-    else:
-        prefix = f'{num}. ' if ordered else '• '
+    prefix = f'{num}. ' if ordered else '• '
     p.addText(prefix)
     for c in children:
         if c.get('type') in ('paragraph', 'block_text'):
@@ -637,11 +757,8 @@ def renderListItem(doc, item, ordered=False, num=1):
         elif c.get('type') in ('list', 'bullet_list', 'ordered_list'):
             doc.text.addElement(p)
             for sub in c.get('children', []):
-                sub_is_task = sub.get('type') == 'task_list_item'
-                sub_checked = sub.get('attrs', {}).get('checked', False) if sub_is_task else False
-                sub_prefix = ('   ☑ ' if sub_checked else '   ☐ ') if sub_is_task else '   ◦ '
                 sp = P(stylename='ListaBul')
-                sp.addText(sub_prefix)
+                sp.addText('   ◦ ')
                 for sc in sub.get('children', []):
                     if sc.get('type') in ('paragraph', 'block_text'):
                         for ic in sc.get('children', []): renderStyledText(sp, ic)
@@ -715,12 +832,74 @@ def addTable(doc, style_name, col_widths_cm, rows_fn, parent=None):
         buildTable(doc, style_name, col_widths_cm, rows_fn))
 
 
+# ─── SECCIÓN: CABECERA INSTITUCIONAL ─────────────────────────────────────────
+
+def addCabeceraInstitucional(doc, expediente, tipo_contrato,
+                              institucion='AYUNTAMIENTO DE TOTANA',
+                              subdep='Negociado de Contratación',
+                              direccion='Plaza de la Constitución, 1 · 30850 Totana (Murcia) · www.totana.es',
+                              parent=None):
+    """Genera la cabecera con nombre ayuntamiento y caja expediente.
+    Si no hay número de expediente, se omite la caja (nunca se muestra
+    un placeholder literal sin resolver). Por defecto se añade al
+    <style:header> de la master page, repitiéndose en todas las páginas;
+    pasa parent=doc.text explícitamente para insertarla solo una vez en
+    el cuerpo."""
+    if parent is None:
+        parent = getPageHeader(doc)
+
+    inst_block = [
+        mkP('InstNombre', institucion),
+        mkP('InstSubdep', subdep),
+        mkP('InstDirec',  direccion),
+    ]
+
+    if expediente:
+        def build_rows(outer_tbl):
+            tbl_inst = buildEscudoConNombreTable(doc, inst_block,
+                                                  col_icon_cm=2.6, total_w_cm=10.5)
+            tc_inst = TableCell()
+            tbl(tc_inst, 'style-name', 'TC_Bare')
+            tc_inst.addElement(tbl_inst)
+
+            # tabla interna para la caja de expediente
+            tbl_exp = Table()
+            tbl(tbl_exp, 'style-name', 'TBL_Datos')
+
+            col_exp = TableColumn()
+            col_style = 'ColW_5_5'
+            if not any(getattr(s, 'getAttribute', lambda x: None)('name') == col_style
+                       for s in doc.automaticstyles.childNodes):
+                s2 = Style(name=col_style, family="table-column")
+                tcp2 = TableColumnProperties()
+                st(tcp2, 'column-width', '5.5cm')
+                s2.addElement(tcp2)
+                doc.automaticstyles.addElement(s2)
+            tbl(col_exp, 'style-name', col_style)
+            tbl_exp.addElement(col_exp)
+            tbl_exp.addElement(mkRow([mkCell('TC_ExpBoxLabel', [mkP('ExpLabel', 'EXPEDIENTE')])]))
+            tbl_exp.addElement(mkRow([mkCell('TC_ExpBox', [
+                mkP('ExpNumero', expediente),
+                mkP('ExpTipo', tipo_contrato),
+            ])]))
+
+            tc_exp = TableCell()
+            tbl(tc_exp, 'style-name', 'TC_Bare')
+            tc_exp.addElement(tbl_exp)
+
+            outer_tbl.addElement(mkRow([tc_inst, tc_exp]))
+
+        addTable(doc, 'TBL_Hdr', [10.5, 6.0], build_rows, parent=parent)
+    else:
+        addEscudoConNombre(doc, inst_block, parent=parent)
+
+    addHeaderRule(doc, parent=parent)
+
 
 def addHeaderRule(doc, parent=None):
-    """Filete separador bajo la cabecera institucional, en azul oscuro
-    institucional (no en el azul vivo de acento). No hay forma directa en
-    ODT de hacer un <hr> estilizado; se simula con un párrafo vacío con
-    borde inferior."""
+    """Línea azul separadora bajo la cabecera institucional. No hay forma
+    directa en ODT de hacer un <hr> estilizado; se simula con un párrafo
+    vacío con borde inferior."""
     if parent is None:
         parent = doc.text
     exists = False
@@ -734,8 +913,8 @@ def addHeaderRule(doc, parent=None):
     if not exists:
         rule_style = Style(name='HdrRule', family="paragraph")
         rule_pp = ParagraphProperties()
-        fo(rule_pp, 'border-bottom', f'1.2pt solid {AZUL_OSCURO}')
-        fo(rule_pp, 'margin-bottom', '0.35cm')
+        fo(rule_pp, 'border-bottom', f'1.5pt solid {AZUL_INS}')
+        fo(rule_pp, 'margin-bottom', '19.92pt')
         fo(rule_pp, 'margin-top', '0cm')
         fo(rule_pp, 'padding-bottom', '0.05cm')
         rule_style.addElement(rule_pp)
@@ -790,16 +969,75 @@ def addTituloPrincipal(doc, title, subtitulo=None):
     if subtitulo:
         doc.text.addElement(mkP('DocSupratit', subtitulo.upper()))
     doc.text.addElement(mkP('DocTitle', title.upper()))
-    # filete fino bajo el título (borde de párrafo, no texto decorativo)
-    doc.text.addElement(P(stylename='TitleRule'))
+    # línea decorativa azul
+    doc.text.addElement(mkP('TitleRule', '━━━━━━━━'))
+
+
+# ─── SECCIÓN: H2 DE SECCIÓN ───────────────────────────────────────────────────
+
+def addSeccionH2(doc, titulo):
+    p = P(stylename='SeccionH2')
+    p.addText(titulo.upper() if titulo else '')
+    doc.text.addElement(p)
+
+
+# ─── SECCIÓN: TABLA DE DATOS (filas clave-valor) ─────────────────────────────
+
+def addTablaDatos(doc, filas, titulo=None, col_label_pct=0.34):
+    if titulo:
+        addSeccionH2(doc, titulo)
+        doc.text.addElement(P(stylename='BodyText'))  # pequeño espacio
+
+    n = len(filas)
+    col_label = 16.5 * col_label_pct
+    col_valor = 16.5 - col_label
+
+    def build_rows(tbl):
+        for i, (label, valor) in enumerate(filas):
+            is_head = (i == 0)
+            is_last = (i == n - 1)
+            lc = 'TC_LabelHead' if is_head else ('TC_LabelLast' if is_last else 'TC_Label')
+            vc = 'TC_ValorHead' if is_head else ('TC_ValorLast' if is_last else 'TC_Valor')
+            lp = 'TabLabelHead' if is_head else 'TabLabel'
+            # ¿valor en negrita? (si la clave contiene "importe" o "valor")
+            v_style = 'TabValorHead' if is_head else (
+                      'TabValorBold' if any(k in label.lower() for k in
+                      ['importe', 'valor estimado', 'precio']) else 'TabValor')
+            tc_l = mkCell(lc, [mkP(lp, label.upper())])
+            tc_v = mkCell(vc, [mkP(v_style, valor)])
+            tbl.addElement(mkRow([tc_l, tc_v]))
+
+    addTable(doc, 'TBL_Datos', [col_label, col_valor], build_rows)
+
+
+# ─── SECCIÓN: TABLA ECONÓMICA ─────────────────────────────────────────────────
+
+def addTablaEconomica(doc, filas):
+    """filas: lista de [label, valor]. La fila cuyo label sea 'total'
+    se renderiza con fondo azul oscuro."""
+
+    def build_rows(tbl):
+        for i, (label, valor) in enumerate(filas):
+            is_head = (i == 0)
+            is_total = label.lower() == 'total'
+            lc = 'TC_EcoLabelHead' if is_head else ('TC_EcoTotalLabel' if is_total else 'TC_EcoLabel')
+            vc = 'TC_EcoValorHead' if is_head else ('TC_EcoTotalValor' if is_total else 'TC_EcoValor')
+            lp = 'EcoLabelHead' if is_head else ('EcoTotalLab' if is_total else 'EcoLabel')
+            vp = 'EcoValorHead' if is_head else ('EcoTotalVal' if is_total else 'EcoValor')
+            tc_l = mkCell(lc, [mkP(lp, label if not is_total else 'Importe total (IVA incluido)')])
+            tc_v = mkCell(vc, [mkP(vp, valor)])
+            tbl.addElement(mkRow([tc_l, tc_v]))
+
+    # borde exterior (añadir estilo tabla con bordes)
+    addTable(doc, 'TBL_Eco', [10.0, 6.5], build_rows)
 
 
 # ─── SECCIÓN: CALLOUT DE AVISO ────────────────────────────────────────────────
 
 def _ensureAvisoStyle(doc):
-    """Crea (si no existe) el estilo automático de párrafo del aviso: fondo
-    neutro y filete izquierdo en azul oscuro institucional — una nota
-    formal, no un destacado de color vivo. Devuelve el nombre del estilo."""
+    """Crea (si no existe) el estilo automático de párrafo del aviso: borde
+    izquierdo y fondo en tinte de azul corporativo (sin colores ajenos a la
+    marca, sec. 6.2 del manual de identidad). Devuelve el nombre del estilo."""
     aviso_style_name = 'AvisoParagraph'
     exists = any(getattr(s, 'getAttribute', lambda x: None)('name') == aviso_style_name
                  for s in doc.automaticstyles.childNodes)
@@ -807,7 +1045,7 @@ def _ensureAvisoStyle(doc):
         s = Style(name=aviso_style_name, family='paragraph')
         pp = ParagraphProperties()
         fo(pp, 'background-color', AZUL_TINT)
-        fo(pp, 'border-left',   f'2pt solid {AZUL_OSCURO}')
+        fo(pp, 'border-left',   f'3pt solid {AZUL_INS}')
         fo(pp, 'border-top',    f'0.4pt solid {AZUL_TINT_B}')
         fo(pp, 'border-bottom', f'0.4pt solid {AZUL_TINT_B}')
         fo(pp, 'border-right',  f'0.4pt solid {AZUL_TINT_B}')
@@ -820,12 +1058,28 @@ def _ensureAvisoStyle(doc):
         fo(pp, 'line-height',    '160%')
         s.addElement(pp)
         tp = TextProperties()
-        fo(tp, 'font-size', '9.5pt')
-        fo(tp, 'color', GRIS_TEXTO)
-        fo(tp, 'font-family', FONT_SERIF)
+        fo(tp, 'font-size', '9pt')
+        fo(tp, 'color', AZUL_OSCURO)
+        fo(tp, 'font-family', FONT_SANS)
         s.addElement(tp)
         doc.automaticstyles.addElement(s)
     return aviso_style_name
+
+
+def addAviso(doc, texto, negrita_inicio=None, md_parser=None):
+    """Caja de aviso con borde izquierdo y fondo en tinte de azul (modo
+    estructurado: recibe texto plano)."""
+    aviso_style_name = _ensureAvisoStyle(doc)
+    p = P(stylename=aviso_style_name)
+    if negrita_inicio and texto.startswith(negrita_inicio):
+        sp_b = Span(stylename='AvisoBold')
+        sp_b.addText(negrita_inicio + ' ')
+        p.addElement(sp_b)
+        resto = texto[len(negrita_inicio):].strip()
+    else:
+        resto = texto
+    _renderAvisoText(p, resto)
+    doc.text.addElement(p)
 
 
 def addAvisoFromInline(doc, children):
@@ -839,54 +1093,105 @@ def addAvisoFromInline(doc, children):
     doc.text.addElement(p)
 
 
-# ─── CUERPO COMPLETO DESDE MARKDOWN ──────────────────────────────────────────
+def _renderAvisoText(p, texto):
+    """Renderiza texto del aviso, poniendo en negrita palabras en MAYÚSCULAS."""
+    # Detecta palabras todo-mayúsculas de 4+ letras
+    parts = re.split(r'(\b[A-ZÁÉÍÓÚÑ]{4,}\b)', texto)
+    for part in parts:
+        if re.match(r'^[A-ZÁÉÍÓÚÑ]{4,}$', part):
+            sp = Span(stylename='Bold')
+            sp.addText(part)
+            p.addElement(sp)
+        else:
+            p.addText(part)
 
-def renderDocumentBody(doc, tokens):
+
+# ─── SECCIÓN: PIE DE FIRMA ────────────────────────────────────────────────────
+
+def addPieFirma(doc, lugar="Totana", cargo="El/La Responsable del Negociado de Contratación"):
+    doc.text.addElement(P(stylename='BodyText'))  # espacio
+
+    def build_rows(tbl):
+        # col izquierda: CSV | col derecha: espacio firma
+        tc_csv = mkCell('TC_CSV', [
+            mkP('CSVLabel', 'Código Seguro de Verificación (CSV)'),
+            mkP('CSVCode',  '________-____-____-____-____________'),
+        ])
+        tc_firma = mkCell('TC_FirmaBox', [
+            mkP('BodyNote', f'{lugar}, a la fecha al margen señalada.'),
+            P(stylename='BodyText'),   # espacio para la firma
+            P(stylename='BodyText'),
+            mkP('FirmaTit',  'Documento firmado electrónicamente'),
+            mkP('FirmaSubt', cargo),
+        ])
+        tbl.addElement(mkRow([tc_csv, tc_firma]))
+
+    addTable(doc, 'TBL_Firma', [7.5, 9.0], build_rows)
+
+
+def _renderInlineMd(p, text, md_parser):
+    """Renderiza una cadena con posible markdown inline (**bold**, _italic_) en un párrafo."""
+    tokens = md_parser(text)
+    for token in tokens:
+        t = token.get('type', '')
+        children = token.get('children', [])
+        if t in ('paragraph', 'inline'):
+            for c in children:
+                renderStyledText(p, c)
+        elif t == 'text':
+            renderInline(p, token.get('raw', ''))
+        else:
+            if children:
+                for c in children:
+                    renderStyledText(p, c)
+            elif token.get('raw'):
+                renderInline(p, token['raw'])
+
+
+# ─── CUERPO COMPLETO DESDE MARKDOWN (modo habitual, sin "secciones") ─────────
+
+def renderDocumentBody(doc, tokens, expediente='', tipo_contrato=''):
     """Renderiza el cuerpo completo de un modelo cuando llega como markdown
     plano (caso real de uso: server.js nunca rellena `secciones`, el
-    contenido completo —cabecera, título, tablas, avisos— ya viene escrito
-    por el usuario dentro del propio cuerpo). Aplica el look institucional
-    directamente sobre esa estructura, sin añadir ninguna cabecera/título
-    automáticos por separado (evitando así duplicarlos):
+    contenido completo —título, tablas, avisos— ya viene escrito por el
+    usuario dentro del propio cuerpo). Aplica el look institucional
+    directamente sobre esa estructura:
 
-      - El primer encabezado del documento se trata como nombre de la
-        institución; si le sigue un párrafo corto, se trata como
-        subdepartamento. Se cierra con la línea azul separadora.
+      - La cabecera institucional fija (escudo + AYUNTAMIENTO DE TOTANA +
+        Negociado de Contratación + dirección, y la caja de EXPEDIENTE/tipo
+        de contrato a la derecha) se genera siempre, independientemente de
+        lo que traiga la plantilla, para que el resultado sea idéntico en
+        todos los documentos.
+      - Si el cuerpo empieza repitiendo ese membrete a mano como encabezado
+        (p.ej. "## AYUNTAMIENTO DE TOTANA", opcionalmente seguido de un
+        párrafo corto "Negociado de Contratación"), se descarta para no
+        duplicarlo bajo la cabecera real ya generada arriba. Cualquier otro
+        encabezado —incluido el título real del documento, aunque sea el
+        primero— se conserva.
       - Dos encabezados consecutivos (sin nada entremedias) se tratan como
         título principal + subtítulo (con la línea decorativa azul).
       - El resto de encabezados de nivel 1-2 son secciones (SeccionH2).
       - Las tablas y citas de aviso se gestionan en renderTable/renderBlock.
     """
+    addCabeceraInstitucional(doc, expediente, tipo_contrato)
+
     n = len(tokens)
     i = 0
-    first_heading_done = False
+
+    if (i < n and tokens[i].get('type') == 'heading'
+            and tokens[i].get('attrs', {}).get('level', 1) <= 2
+            and _norm(_plainText(tokens[i].get('children', []))) == _norm('AYUNTAMIENTO DE TOTANA')):
+        i += 1
+        if (i < n and tokens[i].get('type') == 'paragraph'
+                and len(_plainText(tokens[i])) <= 80):
+            i += 1
+
     while i < n:
         token = tokens[i]
         t = token.get('type', '')
         level = token.get('attrs', {}).get('level', 1)
 
         if t == 'heading' and level <= 2:
-            if not first_heading_done:
-                first_heading_done = True
-                p = P(stylename='InstNombre')
-                for c in token.get('children', []): renderStyledText(p, c)
-                nombre_paragraphs = [p]
-
-                j = i + 1
-                if (j < n and tokens[j].get('type') == 'paragraph'
-                        and len(_plainText(tokens[j])) <= 80):
-                    sp = P(stylename='InstSubdep')
-                    for c in tokens[j].get('children', []): renderStyledText(sp, c)
-                    nombre_paragraphs.append(sp)
-                    i = j + 1
-                else:
-                    i += 1
-
-                header = getPageHeader(doc)
-                addEscudoConNombre(doc, nombre_paragraphs, parent=header)
-                addHeaderRule(doc, parent=header)
-                continue
-
             j = i + 1
             if (j < n and tokens[j].get('type') == 'heading'
                     and tokens[j].get('attrs', {}).get('level', 1) <= 2):
@@ -897,7 +1202,7 @@ def renderDocumentBody(doc, tokens):
                 continue
 
             p = P(stylename='SeccionH2')
-            for c in token.get('children', []): renderStyledText(p, c)
+            for c in token.get('children', []): renderStyledText(p, c, upper=True)
             doc.text.addElement(p)
             i += 1
             continue
@@ -910,8 +1215,9 @@ def renderDocumentBody(doc, tokens):
 
 def main():
     # Nota: no se admite ninguna plantilla .odt/.ott externa. El documento se
-    # genera siempre desde cero con el formato institucional fijo para
-    # garantizar un resultado consistente independientemente del modelo.
+    # genera siempre desde cero con el formato institucional fijo (cabecera,
+    # caja de expediente, tablas y firma) para garantizar un resultado
+    # consistente independientemente del modelo/origen del contenido.
     if len(sys.argv) < 3:
         print("Usage: export_odt.py <input.json> <output.odt>", file=sys.stderr)
         sys.exit(1)
@@ -922,15 +1228,117 @@ def main():
     with open(input_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
-    markdown = data.get('markdown', '')
+    title         = data.get('title', 'DOCUMENTO')
+    categoria     = data.get('categoria', '')
+    subtitulo     = data.get('subtitulo') or categoria
+    expediente    = data.get('expediente', '')
+    tipo_contrato = data.get('tipo_contrato') or categoria
+    secciones     = data.get('secciones', [])
+    extra_md      = data.get('markdown', '')
 
     doc = OpenDocumentText()
     applyPageLayout(doc)
     applyAllStyles(doc)
 
-    if markdown:
-        md_parser = mistune.create_markdown(renderer=None, plugins=['table', 'task_lists'])
-        renderDocumentBody(doc, md_parser(markdown))
+    md_parser = mistune.create_markdown(renderer=None, plugins=['table'])
+
+    if not secciones:
+        # Modo habitual: el cuerpo del modelo ya trae su propia cabecera,
+        # título y secciones escritos como markdown (caso real de la app:
+        # server.js solo envía `markdown`, nunca `secciones`). Se aplica el
+        # look institucional directamente sobre esa estructura para no
+        # duplicar cabecera/título.
+        if extra_md:
+            renderDocumentBody(doc, md_parser(extra_md), expediente, tipo_contrato)
+        doc.save(output_path)
+        print(f"OK:{output_path}", flush=True)
+        return
+
+    # ── Modo estructurado (compatibilidad con el contrato JSON documentado
+    # al inicio de este archivo): cabecera y título explícitos por separado
+    # de las `secciones`. ──
+    addCabeceraInstitucional(doc, expediente, tipo_contrato)
+    addTituloPrincipal(doc, title, subtitulo)
+
+    for sec in secciones:
+        tipo = sec.get('tipo', 'texto')
+
+        if tipo == 'datos':
+            addTablaDatos(doc, sec.get('filas', []),
+                          titulo=sec.get('titulo'))
+
+        elif tipo == 'economica':
+            if sec.get('titulo'):
+                addSeccionH2(doc, sec['titulo'])
+                doc.text.addElement(P(stylename='BodyText'))
+            addTablaEconomica(doc, sec.get('filas', []))
+            if sec.get('nota'):
+                p = P(stylename='BodyNote')
+                p.addText(sec['nota'])
+                doc.text.addElement(p)
+
+        elif tipo == 'aviso':
+            texto = sec.get('texto', '')
+            negrita = sec.get('negrita_inicio')
+            addAviso(doc, texto, negrita_inicio=negrita, md_parser=md_parser)
+
+        elif tipo == 'texto':
+            md_text = sec.get('markdown', sec.get('texto', ''))
+            if sec.get('titulo'):
+                addSeccionH2(doc, sec['titulo'])
+                doc.text.addElement(P(stylename='BodyText'))
+            if md_text:
+                for token in md_parser(md_text):
+                    renderBlock(doc, token)
+
+        elif tipo == 'lista':
+            if sec.get('titulo'):
+                addSeccionH2(doc, sec['titulo'])
+                doc.text.addElement(P(stylename='BodyText'))
+            for item in sec.get('items', []):
+                p = P(stylename='ListaBul')
+                p.addText('• ')
+                _renderInlineMd(p, item, md_parser)
+                doc.text.addElement(p)
+
+        elif tipo == 'lista_num':
+            if sec.get('titulo'):
+                addSeccionH2(doc, sec['titulo'])
+                doc.text.addElement(P(stylename='BodyText'))
+            for i, item in enumerate(sec.get('items', []), 1):
+                p = P(stylename='ListaNum')
+                p.addText(f'{i}. ')
+                _renderInlineMd(p, item, md_parser)
+                doc.text.addElement(p)
+
+        elif tipo == 'nota':
+            p = P(stylename='BodyNote')
+            renderInline(p, sec.get('texto', ''))
+            doc.text.addElement(p)
+
+        elif tipo == 'salto_pagina':
+            # párrafo con salto de página
+            p = P(stylename='BodyText')
+            brk = Element(qname=(TEXTNS, 'p'))
+            from odf.namespaces import FONS
+            pp = ParagraphProperties()
+            fo(pp, 'break-before', 'page')
+            s_pb = Style(name='PageBreak', family='paragraph')
+            s_pb.addElement(pp)
+            if not any(getattr(s, 'getAttribute', lambda x: None)('name') == 'PageBreak'
+                       for s in doc.automaticstyles.childNodes):
+                doc.automaticstyles.addElement(s_pb)
+            doc.text.addElement(P(stylename='PageBreak'))
+
+        elif tipo == 'firma':
+            addPieFirma(doc,
+                        lugar=sec.get('lugar', 'Totana'),
+                        cargo=sec.get('cargo', 'El/La Responsable del Negociado de Contratación'))
+
+    # ── MARKDOWN ADICIONAL ──
+    if extra_md:
+        for token in md_parser(extra_md):
+            renderBlock(doc, token)
 
     doc.save(output_path)
     print(f"OK:{output_path}", flush=True)

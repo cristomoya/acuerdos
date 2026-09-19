@@ -853,7 +853,13 @@ async function _generateOdtBuffer(modelo, camposObj) {
   const inputJson = path.join(tmpDir, `${tmpId}_in.json`);
   const outputOdt = path.join(tmpDir, `${tmpId}_out.odt`);
 
-  const payload = { markdown: cuerpo };
+  const expediente = (camposObj && (camposObj['NUMERO_EXPEDIENTE'] || camposObj['EXPEDIENTE'])) || '';
+
+  const payload = {
+    markdown: cuerpo,
+    expediente: expediente ? String(expediente).trim() : '',
+    tipo_contrato: modelo.categoria_nombre || '',
+  };
   fs.writeFileSync(inputJson, JSON.stringify(payload));
 
   const args = [path.join(__dirname, 'scripts/export_odt.py'), inputJson, outputOdt];
