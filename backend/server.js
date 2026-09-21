@@ -853,7 +853,12 @@ async function _generateOdtBuffer(modelo, camposObj) {
   const inputJson = path.join(tmpDir, `${tmpId}_in.json`);
   const outputOdt = path.join(tmpDir, `${tmpId}_out.odt`);
 
-  const expediente = (camposObj && (camposObj['NUMERO_EXPEDIENTE'] || camposObj['EXPEDIENTE'])) || '';
+  // Sin campos (GET, modo plantilla) se deja el marcador {{EXPEDIENTE}} en la
+  // caja de expediente para que quien consume el .odt (p. ej. el portal de
+  // contratación) lo sustituya; con campos pero sin expediente, se omite la caja.
+  const expediente = camposObj
+    ? (camposObj['NUMERO_EXPEDIENTE'] || camposObj['EXPEDIENTE'] || '')
+    : '{{EXPEDIENTE}}';
 
   const payload = {
     markdown: cuerpo,
